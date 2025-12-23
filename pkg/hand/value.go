@@ -60,11 +60,31 @@ func (e ErrUnknownHandValue) Error() string {
 	return "unknown hand value"
 }
 
+type ErrExistSameCards struct{}
+
+func (e ErrExistSameCards) Error() string {
+	return "exist same cards"
+}
+
+func existSameCards(cards []card.Card) bool {
+	m := make(map[card.Card]int)
+	for _, c := range cards {
+		if _, ok := m[c]; ok {
+			return true
+		}
+		m[c]++
+	}
+	return false
+}
+
 func Value(c []card.Card) (HandValue, error) {
 	cards := make([]card.Card, len(c))
 	copy(cards, c)
 	if len(cards) != 5 {
 		return Unknown, ErrInvalidHandSize{}
+	}
+	if existSameCards(cards) {
+		return Unknown, ErrExistSameCards{}
 	}
 
 	m := make(map[rank.Rank]int)
@@ -139,6 +159,8 @@ func Value(c []card.Card) (HandValue, error) {
 				return RoyalFlush, nil
 			}
 			return StraightFlush, nil
+		default:
+			return HighCard, nil
 		}
 	}
 	return Unknown, ErrUnknownHandValue{}
