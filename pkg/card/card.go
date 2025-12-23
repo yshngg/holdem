@@ -12,18 +12,18 @@ type Card struct {
 	suit suit.Suit
 }
 
-func New(rank rank.Rank, suit suit.Suit) *Card {
-	return &Card{
+func New(rank rank.Rank, suit suit.Suit) Card {
+	return Card{
 		rank: rank,
 		suit: suit,
 	}
 }
 
-func (c *Card) Rank() rank.Rank {
+func (c Card) Rank() rank.Rank {
 	return c.rank
 }
 
-func (c *Card) Suit() suit.Suit {
+func (c Card) Suit() suit.Suit {
 	return c.suit
 }
 

@@ -4,7 +4,6 @@ type Rank int
 
 const (
 	_ Rank = iota
-	Ace
 	Two
 	Three
 	Four
@@ -17,12 +16,11 @@ const (
 	Jack
 	Queen
 	King
+	Ace
 )
 
 func (r Rank) String() string {
 	switch r {
-	case Ace:
-		return "Ace"
 	case Two:
 		return "Two"
 	case Three:
@@ -47,6 +45,8 @@ func (r Rank) String() string {
 		return "Queen"
 	case King:
 		return "King"
+	case Ace:
+		return "Ace"
 	default:
 		return "Unknown"
 	}

@@ -64,3 +64,7 @@ func (d *Dealer) DealRiver() *card.Card {
 	}
 	return card
 }
+
+func (d *Dealer) Deal() *card.Card {
+	return d.deal()
+}

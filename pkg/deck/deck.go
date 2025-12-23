@@ -12,9 +12,10 @@ type Deck struct {
 
 func New() *Deck {
 	d := &Deck{}
-	for r := rank.Ace; r <= rank.King; r++ {
+	for r := rank.Two; r <= rank.Ace; r++ {
 		for s := suit.Clubs; s <= suit.Diamonds; s++ {
-			d.cards = append(d.cards, card.New(r, s))
+			c := card.New(r, s)
+			d.cards = append(d.cards, &c)
 		}
 	}
 	return d
