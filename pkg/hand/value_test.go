@@ -12,11 +12,13 @@ import (
 
 func TestValue(t *testing.T) {
 	testCases := []struct {
-		cards    []card.Card
-		expected HandValue
-		err      error
+		name  string
+		cards []card.Card
+		want  HandValue
+		err   error
 	}{
 		{
+			name: "high card",
 			cards: []card.Card{
 				card.New(rank.Ten, suit.Clubs),
 				card.New(rank.Four, suit.Hearts),
@@ -24,10 +26,11 @@ func TestValue(t *testing.T) {
 				card.New(rank.King, suit.Clubs),
 				card.New(rank.Two, suit.Spades),
 			},
-			expected: HighCard,
-			err:      nil,
+			want: HighCard,
+			err:  nil,
 		},
 		{
+			name: "pair",
 			cards: []card.Card{
 				card.New(rank.King, suit.Clubs),
 				card.New(rank.King, suit.Hearts),
@@ -35,10 +38,11 @@ func TestValue(t *testing.T) {
 				card.New(rank.Two, suit.Clubs),
 				card.New(rank.Five, suit.Spades),
 			},
-			expected: Pair,
-			err:      nil,
+			want: Pair,
+			err:  nil,
 		},
 		{
+			name: "two pairs",
 			cards: []card.Card{
 				card.New(rank.King, suit.Clubs),
 				card.New(rank.King, suit.Hearts),
@@ -46,10 +50,11 @@ func TestValue(t *testing.T) {
 				card.New(rank.Seven, suit.Clubs),
 				card.New(rank.Five, suit.Spades),
 			},
-			expected: TwoPairs,
-			err:      nil,
+			want: TwoPairs,
+			err:  nil,
 		},
 		{
+			name: "three of a kind",
 			cards: []card.Card{
 				card.New(rank.King, suit.Clubs),
 				card.New(rank.King, suit.Hearts),
@@ -57,10 +62,11 @@ func TestValue(t *testing.T) {
 				card.New(rank.Seven, suit.Clubs),
 				card.New(rank.Five, suit.Spades),
 			},
-			expected: ThreeOfAKind,
-			err:      nil,
+			want: ThreeOfAKind,
+			err:  nil,
 		},
 		{
+			name: "straight",
 			cards: []card.Card{
 				card.New(rank.Three, suit.Clubs),
 				card.New(rank.Four, suit.Hearts),
@@ -68,10 +74,11 @@ func TestValue(t *testing.T) {
 				card.New(rank.Six, suit.Clubs),
 				card.New(rank.Seven, suit.Spades),
 			},
-			expected: Straight,
-			err:      nil,
+			want: Straight,
+			err:  nil,
 		},
 		{
+			name: "flush",
 			cards: []card.Card{
 				card.New(rank.King, suit.Clubs),
 				card.New(rank.Queen, suit.Clubs),
@@ -79,10 +86,11 @@ func TestValue(t *testing.T) {
 				card.New(rank.Eight, suit.Clubs),
 				card.New(rank.Two, suit.Clubs),
 			},
-			expected: Flush,
-			err:      nil,
+			want: Flush,
+			err:  nil,
 		},
 		{
+			name: "full house",
 			cards: []card.Card{
 				card.New(rank.King, suit.Clubs),
 				card.New(rank.King, suit.Hearts),
@@ -90,10 +98,11 @@ func TestValue(t *testing.T) {
 				card.New(rank.Seven, suit.Clubs),
 				card.New(rank.Seven, suit.Spades),
 			},
-			expected: FullHouse,
-			err:      nil,
+			want: FullHouse,
+			err:  nil,
 		},
 		{
+			name: "four of a kind",
 			cards: []card.Card{
 				card.New(rank.Six, suit.Spades),
 				card.New(rank.Six, suit.Diamonds),
@@ -101,10 +110,11 @@ func TestValue(t *testing.T) {
 				card.New(rank.Six, suit.Clubs),
 				card.New(rank.King, suit.Spades),
 			},
-			expected: FourOfAKind,
-			err:      nil,
+			want: FourOfAKind,
+			err:  nil,
 		},
 		{
+			name: "straight flush",
 			cards: []card.Card{
 				card.New(rank.Two, suit.Spades),
 				card.New(rank.Three, suit.Spades),
@@ -112,21 +122,11 @@ func TestValue(t *testing.T) {
 				card.New(rank.Five, suit.Spades),
 				card.New(rank.Six, suit.Spades),
 			},
-			expected: StraightFlush,
-			err:      nil,
+			want: StraightFlush,
+			err:  nil,
 		},
 		{
-			cards: []card.Card{
-				card.New(rank.Two, suit.Spades),
-				card.New(rank.Three, suit.Spades),
-				card.New(rank.Four, suit.Spades),
-				card.New(rank.Five, suit.Spades),
-				card.New(rank.Six, suit.Spades),
-			},
-			expected: StraightFlush,
-			err:      nil,
-		},
-		{
+			name: "royal flush",
 			cards: []card.Card{
 				card.New(rank.Ten, suit.Hearts),
 				card.New(rank.Jack, suit.Hearts),
@@ -134,10 +134,11 @@ func TestValue(t *testing.T) {
 				card.New(rank.King, suit.Hearts),
 				card.New(rank.Ace, suit.Hearts),
 			},
-			expected: RoyalFlush,
-			err:      nil,
+			want: RoyalFlush,
+			err:  nil,
 		},
 		{
+			name: "minimal straight flush",
 			cards: []card.Card{
 				card.New(rank.Ace, suit.Hearts),
 				card.New(rank.Two, suit.Hearts),
@@ -145,20 +146,22 @@ func TestValue(t *testing.T) {
 				card.New(rank.Four, suit.Hearts),
 				card.New(rank.Five, suit.Hearts),
 			},
-			expected: StraightFlush,
-			err:      nil,
+			want: StraightFlush,
+			err:  nil,
 		},
 		{
+			name: "four hands",
 			cards: []card.Card{
 				card.New(rank.Jack, suit.Hearts),
 				card.New(rank.Queen, suit.Hearts),
 				card.New(rank.King, suit.Hearts),
 				card.New(rank.Ace, suit.Hearts),
 			},
-			expected: Unknown,
-			err:      ErrInvalidHandSize{},
+			want: Unknown,
+			err:  ErrInvalidHandSize{},
 		},
 		{
+			name: "six hands",
 			cards: []card.Card{
 				card.New(rank.Nine, suit.Hearts),
 				card.New(rank.Ten, suit.Hearts),
@@ -167,10 +170,11 @@ func TestValue(t *testing.T) {
 				card.New(rank.King, suit.Hearts),
 				card.New(rank.Ace, suit.Hearts),
 			},
-			expected: Unknown,
-			err:      ErrInvalidHandSize{},
+			want: Unknown,
+			err:  ErrInvalidHandSize{},
 		},
 		{
+			name: "exist same cards",
 			cards: []card.Card{
 				card.New(rank.Jack, suit.Hearts),
 				card.New(rank.Queen, suit.Hearts),
@@ -178,26 +182,28 @@ func TestValue(t *testing.T) {
 				card.New(rank.Ace, suit.Hearts),
 				card.New(rank.Ace, suit.Hearts),
 			},
-			expected: Unknown,
-			err:      ErrExistSameCards{},
+			want: Unknown,
+			err:  ErrExistSameCards{},
 		},
 	}
 
 	for _, tc := range testCases {
-		value, err := Value(tc.cards)
-		if err != tc.err {
-			t.Errorf("Value(%v); err: got %v, want %v", tc.cards, err, tc.err)
-		}
-		if value != tc.expected {
-			t.Errorf("Value(%v); hand value: got %v, want %v", tc.cards, value, tc.expected)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			value, err := Value(tc.cards)
+			if err != tc.err {
+				t.Errorf("Value(%v).err = %v, want %v", tc.cards, err, tc.err)
+			}
+			if value != tc.want {
+				t.Errorf("Value(%v).value = %v, want %v", tc.cards, value, tc.want)
+			}
+		})
 	}
 }
 
 func BenchmarkValue(b *testing.B) {
-	dck := deck.New()
-	d := dealer.New(dck)
 	for b.Loop() {
+		b.StopTimer()
+		d := dealer.New(deck.New())
 		d.Shuffle()
 		cards := []card.Card{
 			*d.Deal(),
@@ -206,9 +212,10 @@ func BenchmarkValue(b *testing.B) {
 			*d.Deal(),
 			*d.Deal(),
 		}
+		b.StartTimer()
 		_, err := Value(cards)
 		if err != nil {
-			b.Fatal(err)
+			b.Errorf("Value(%v).err = %v", cards, err)
 		}
 	}
 }

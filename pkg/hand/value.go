@@ -154,7 +154,7 @@ func Value(c []card.Card) (HandValue, error) {
 			return Straight, nil
 		case flush:
 			return Flush, nil
-		case straight | flush:
+		case straight + flush:
 			if maxRank == rank.Ace && minRank == rank.Ten {
 				return RoyalFlush, nil
 			}
