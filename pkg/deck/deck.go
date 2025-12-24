@@ -7,7 +7,7 @@ import (
 )
 
 type Deck struct {
-	cards []*card.Card
+	cards []card.Card
 }
 
 func New() *Deck {
@@ -15,13 +15,13 @@ func New() *Deck {
 	for r := rank.Two; r <= rank.Ace; r++ {
 		for s := suit.Clubs; s <= suit.Diamonds; s++ {
 			c := card.New(r, s)
-			d.cards = append(d.cards, &c)
+			d.cards = append(d.cards, c)
 		}
 	}
 	return d
 }
 
-func (d *Deck) Len() int {
+func (d Deck) Len() int {
 	return len(d.cards)
 }
 
@@ -36,7 +36,7 @@ func (d *Deck) Pop() *card.Card {
 	} else {
 		d.cards = nil
 	}
-	return card
+	return &card
 }
 
 func (d *Deck) Swap(i, j int) {
