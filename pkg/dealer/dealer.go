@@ -15,6 +15,10 @@ func New(deck *deck.Deck) *Dealer {
 	return &Dealer{deck: deck}
 }
 
+func (d *Dealer) Reset() {
+	d.deck = deck.New()
+}
+
 func (d *Dealer) deal() *card.Card {
 	return d.deck.Pop()
 }
