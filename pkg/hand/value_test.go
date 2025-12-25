@@ -18,7 +18,7 @@ func TestValue(t *testing.T) {
 		err   error
 	}{
 		{
-			name: "high card",
+			name: "HighCard",
 			cards: []card.Card{
 				card.New(rank.Ten, suit.Clubs),
 				card.New(rank.Four, suit.Hearts),
@@ -30,7 +30,7 @@ func TestValue(t *testing.T) {
 			err:  nil,
 		},
 		{
-			name: "pair",
+			name: "Pair",
 			cards: []card.Card{
 				card.New(rank.King, suit.Clubs),
 				card.New(rank.King, suit.Hearts),
@@ -42,7 +42,7 @@ func TestValue(t *testing.T) {
 			err:  nil,
 		},
 		{
-			name: "two pairs",
+			name: "TwoPairs",
 			cards: []card.Card{
 				card.New(rank.King, suit.Clubs),
 				card.New(rank.King, suit.Hearts),
@@ -54,7 +54,7 @@ func TestValue(t *testing.T) {
 			err:  nil,
 		},
 		{
-			name: "three of a kind",
+			name: "ThreeOfAKind",
 			cards: []card.Card{
 				card.New(rank.King, suit.Clubs),
 				card.New(rank.King, suit.Hearts),
@@ -66,7 +66,7 @@ func TestValue(t *testing.T) {
 			err:  nil,
 		},
 		{
-			name: "straight",
+			name: "Straight",
 			cards: []card.Card{
 				card.New(rank.Three, suit.Clubs),
 				card.New(rank.Four, suit.Hearts),
@@ -78,7 +78,7 @@ func TestValue(t *testing.T) {
 			err:  nil,
 		},
 		{
-			name: "flush",
+			name: "Flush",
 			cards: []card.Card{
 				card.New(rank.King, suit.Clubs),
 				card.New(rank.Queen, suit.Clubs),
@@ -90,7 +90,7 @@ func TestValue(t *testing.T) {
 			err:  nil,
 		},
 		{
-			name: "full house",
+			name: "FullHouse",
 			cards: []card.Card{
 				card.New(rank.King, suit.Clubs),
 				card.New(rank.King, suit.Hearts),
@@ -102,7 +102,7 @@ func TestValue(t *testing.T) {
 			err:  nil,
 		},
 		{
-			name: "four of a kind",
+			name: "FourOfAKind",
 			cards: []card.Card{
 				card.New(rank.Six, suit.Spades),
 				card.New(rank.Six, suit.Diamonds),
@@ -114,7 +114,7 @@ func TestValue(t *testing.T) {
 			err:  nil,
 		},
 		{
-			name: "straight flush",
+			name: "StraightFlush",
 			cards: []card.Card{
 				card.New(rank.Two, suit.Spades),
 				card.New(rank.Three, suit.Spades),
@@ -126,7 +126,7 @@ func TestValue(t *testing.T) {
 			err:  nil,
 		},
 		{
-			name: "royal flush",
+			name: "RoyalFlush",
 			cards: []card.Card{
 				card.New(rank.Ten, suit.Hearts),
 				card.New(rank.Jack, suit.Hearts),
@@ -138,7 +138,7 @@ func TestValue(t *testing.T) {
 			err:  nil,
 		},
 		{
-			name: "minimal straight flush",
+			name: "MinimalStraightFlush",
 			cards: []card.Card{
 				card.New(rank.Ace, suit.Hearts),
 				card.New(rank.Two, suit.Hearts),
@@ -150,7 +150,7 @@ func TestValue(t *testing.T) {
 			err:  nil,
 		},
 		{
-			name: "four hands",
+			name: "FourHands",
 			cards: []card.Card{
 				card.New(rank.Jack, suit.Hearts),
 				card.New(rank.Queen, suit.Hearts),
@@ -161,7 +161,7 @@ func TestValue(t *testing.T) {
 			err:  ErrInvalidHandSize{},
 		},
 		{
-			name: "six hands",
+			name: "SixHands",
 			cards: []card.Card{
 				card.New(rank.Nine, suit.Hearts),
 				card.New(rank.Ten, suit.Hearts),
@@ -174,7 +174,7 @@ func TestValue(t *testing.T) {
 			err:  ErrInvalidHandSize{},
 		},
 		{
-			name: "exist same cards",
+			name: "ExistSameCards",
 			cards: []card.Card{
 				card.New(rank.Jack, suit.Hearts),
 				card.New(rank.Queen, suit.Hearts),
