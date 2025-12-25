@@ -15,25 +15,25 @@ func TestCard(t *testing.T) {
 		want  Card
 	}{
 		{
-			name:  "Ace of Spades",
+			name:  "AceOfSpades",
 			_rank: rank.Ace,
 			_suit: suit.Spades,
 			want:  Card{rank.Ace, suit.Spades},
 		},
 		{
-			name:  "Two of Hearts",
+			name:  "TwoOfHearts",
 			_rank: rank.Two,
 			_suit: suit.Hearts,
 			want:  Card{rank.Two, suit.Hearts},
 		},
 		{
-			name:  "Three of Diamonds",
+			name:  "ThreeOfDiamonds",
 			_rank: rank.Three,
 			_suit: suit.Diamonds,
 			want:  Card{rank.Three, suit.Diamonds},
 		},
 		{
-			name:  "Four of Clubs",
+			name:  "FourOfClubs",
 			_rank: rank.Four,
 			_suit: suit.Clubs,
 			want:  Card{rank.Four, suit.Clubs},
