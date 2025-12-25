@@ -17,7 +17,20 @@ func TestLen(t *testing.T) {
 func TestPop(t *testing.T) {
 	_deck := New()
 	remainder := 52
-	for r := rank.Two; r <= rank.Ace; r++ {
+	for s := suit.Clubs; s <= suit.Diamonds; s++ {
+		_card := _deck.Pop()
+		remainder--
+		if remainder != _deck.Len() {
+			t.Errorf("deck length: expected %d, got %d", remainder, _deck.Len())
+		}
+		if _card == nil {
+			t.Errorf("pop card: expected not nil, got nil")
+		}
+		if _card.Rank() != rank.Ace || _card.Suit() != s {
+			t.Errorf("card mismatch: expected %s of %s, got %s", rank.Ace, s, _card)
+		}
+	}
+	for r := rank.Two; r <= rank.King; r++ {
 		for s := suit.Clubs; s <= suit.Diamonds; s++ {
 			// _card := _deck.cards[i*4+j]
 			_card := _deck.Pop()
