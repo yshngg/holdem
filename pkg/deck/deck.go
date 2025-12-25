@@ -29,6 +29,10 @@ func (d Deck) Len() int {
 	return len(d.cards)
 }
 
+func (d Deck) List() []card.Card {
+	return d.cards
+}
+
 func (d *Deck) Pop() *card.Card {
 	remain := d.Len()
 	if remain == 0 {
