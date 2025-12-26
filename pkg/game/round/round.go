@@ -6,6 +6,7 @@ import (
 	"github.com/yshngg/holdem/pkg/dealer"
 	"github.com/yshngg/holdem/pkg/deck"
 	"github.com/yshngg/holdem/pkg/player"
+	"github.com/yshngg/holdem/pkg/watch"
 )
 
 const (
@@ -17,14 +18,19 @@ type Round struct {
 	players []*player.Player
 	dealer  *dealer.Dealer
 	button  int
+
+	watcher     watch.Interface
+	broadcaster *watch.Broadcaster
 }
 
 func New(players []*player.Player, button int) *Round {
 	d := dealer.New(deck.New())
+	queueLength := len(players) * 2
 	return &Round{
-		players: players,
-		dealer:  d,
-		button:  button,
+		players:     players,
+		dealer:      d,
+		button:      button,
+		broadcaster: watch.NewBroadcaster(queueLength, queueLength),
 	}
 }
 

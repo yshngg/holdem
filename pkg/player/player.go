@@ -5,11 +5,25 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/yshngg/holdem/pkg/card"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 const (
 	MinBet = 2
 )
+
+type EventType int
+
+const (
+	EventTypeCheck EventType = iota
+	EventTypeCall
+	EventTypeRaise
+	EventTypeFold
+)
+
+type Event struct {
+	Type EventType
+}
 
 type Player struct {
 	name      string
@@ -20,6 +34,7 @@ type Player struct {
 
 // TODO(@yshngg): Implement BestFivePockerHand method
 func (p *Player) BestFivePockerHand(communityCards [5]*card.Card) [5]*card.Card {
+	watch.NewBroadcaster()
 	var bestFive [5]*card.Card
 
 	return bestFive
@@ -63,4 +78,13 @@ func (p *Player) Chip() int {
 	return p.chip
 }
 
-func (p *Player) Bet(number int) {}
+type BetOption int
+
+const (
+	BetOptionCheck BetOption = iota
+	BetOptionCall
+	BetOptionRaise
+	BetOptionFold
+)
+
+func (p *Player) Bet(opt BetOption) {}

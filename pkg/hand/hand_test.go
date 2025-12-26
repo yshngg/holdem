@@ -14,7 +14,7 @@ func TestValue(t *testing.T) {
 	testCases := []struct {
 		name  string
 		cards []card.Card
-		want  HandValue
+		want  Hand
 		err   error
 	}{
 		{
