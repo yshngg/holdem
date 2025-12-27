@@ -6,15 +6,35 @@ type EventType int
 
 const (
 	internalRunFunctionMarker EventType = iota // internal do function
-	Check
-	Call
-	Raise
-	Fold
-	AllIn
-	Join
-	Leave
-	Start
-	End
+
+	// Player Event
+	PlayerCheck
+	PlayerFold
+	PlayerBet
+	PlayerCall
+	PlayerRaise
+	PlayerAllIn
+
+	// Deal Event
+	DealerShuffle
+	DealerHoleCards
+	DealerFlopCards
+	DealerTurnCard
+	DealerRiverCard
+	DealerBurnCard
+
+	// Round Event
+	RoundStart
+	RoundPreFlop
+	RoundFlop
+	RoundTurn
+	RoundRiver
+	RoundShowdown
+	RoundEnd
+
+	// Table Event
+	TablePlayerJoin
+	TablePlayerLeave
 )
 
 type Interface interface {
@@ -30,6 +50,7 @@ type Event struct {
 	Type   EventType
 	Object any
 }
+
 type emptyWatch chan Event
 
 func NewEmptyWatch() Interface {

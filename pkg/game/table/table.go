@@ -1,33 +1,34 @@
-package session
+package table
 
 import (
 	"github.com/yshngg/holdem/pkg/game/round"
 	"github.com/yshngg/holdem/pkg/player"
 )
 
-type Session struct {
+type Table struct {
 	event  []Event
 	active bool
 	round  round.Round
+	minBet int
 }
 
-func New() *Session {
-	return &Session{
+func New() *Table {
+	return &Table{
 		event: make([]Event, 0),
 	}
 }
 
-func (s *Session) Join(player *player.Player) error {
+func (s *Table) Join(player *player.Player) error {
 	s.event = append(s.event, newEvent(EventTypeJoin, player))
 	return nil
 }
 
-func (s *Session) Leave(player *player.Player) error {
+func (s *Table) Leave(player *player.Player) error {
 	s.event = append(s.event, newEvent(EventTypeLeave, player))
 	return nil
 }
 
-func (s *Session) Start() error {
+func (s *Table) Start() error {
 	round := round.New()
 	for {
 		players := round.Players()

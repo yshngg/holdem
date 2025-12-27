@@ -5,14 +5,44 @@ import (
 
 	"github.com/yshngg/holdem/pkg/card"
 	"github.com/yshngg/holdem/pkg/deck"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 type Dealer struct {
 	deck *deck.Deck
 }
 
-func New(deck *deck.Deck) *Dealer {
-	return &Dealer{deck: deck}
+// New creates a new dealer with the given options.
+func New(opts ...Option) *Dealer {
+	d := &Dealer{}
+	for _, opt := range opts {
+		opt(d)
+	}
+	if d.deck == nil {
+		d.deck = deck.New()
+	}
+	return d
+}
+
+type Option func(*Dealer)
+
+func WithShuffle() Option {
+	return func(d *Dealer) {
+		if d == nil || d.deck == nil {
+			return
+		}
+		d.Shuffle()
+	}
+}
+
+func WithDeck(_deck *deck.Deck) Option {
+	return func(d *Dealer) {
+		d.deck = _deck
+	}
+}
+
+func (d *Dealer) Watch(watch.Interface) {
+
 }
 
 func (d *Dealer) Reset() {
@@ -41,7 +71,7 @@ func (d *Dealer) DealHoleCards(playerCont int) [][2]*card.Card {
 	return holeCards
 }
 
-func (d *Dealer) DealFlop() [3]*card.Card {
+func (d *Dealer) DealFlopCards() [3]*card.Card {
 	var flop [3]*card.Card
 	for i := range 3 {
 		card := d.deal()
@@ -53,7 +83,7 @@ func (d *Dealer) DealFlop() [3]*card.Card {
 	return flop
 }
 
-func (d *Dealer) DealTurn() *card.Card {
+func (d *Dealer) DealTurnCard() *card.Card {
 	card := d.deal()
 	if card == nil {
 		panic("deck is empty")
@@ -61,7 +91,15 @@ func (d *Dealer) DealTurn() *card.Card {
 	return card
 }
 
-func (d *Dealer) DealRiver() *card.Card {
+func (d *Dealer) DealRiverCard() *card.Card {
+	card := d.deal()
+	if card == nil {
+		panic("deck is empty")
+	}
+	return card
+}
+
+func (d *Dealer) BurnCard() *card.Card {
 	card := d.deal()
 	if card == nil {
 		panic("deck is empty")

@@ -8,8 +8,8 @@ import (
 
 func TestDeal(t *testing.T) {
 	_deck := deck.New()
-	_dealer := New(_deck)
-	_dealer.Shuffle()
-	_card := _dealer.Deal()
+	dealer := New(WithDeck(_deck), WithShuffle())
+	dealer.Shuffle()
+	_card := dealer.Deal()
 	t.Logf("Card: %v", _card)
 }
