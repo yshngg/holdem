@@ -22,12 +22,14 @@ func (e ErrNotEnoughChips) Error() string {
 }
 
 type Player struct {
-	name             string
-	id               uuid.UUID
-	holeCards        [2]*card.Card
-	chips            int
-	broadcaster      watch.Broadcaster
-	status           Status
+	name        string
+	id          uuid.UUID
+	holeCards   [2]*card.Card
+	chips       int
+	broadcaster watch.Broadcaster
+	status      Status
+
+	// for action handling
 	activeChan       chan struct{}
 	actionChan       chan Action
 	availableActions []Action
