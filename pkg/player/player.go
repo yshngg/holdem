@@ -1,12 +1,12 @@
 package player
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/yshngg/holdem/pkg/card"
-	"github.com/yshngg/holdem/pkg/player/option"
 	"github.com/yshngg/holdem/pkg/watch"
 )
 
@@ -22,19 +22,24 @@ func (e ErrNotEnoughChips) Error() string {
 }
 
 type Player struct {
-	name        string
-	id          uuid.UUID
-	holeCards   [2]*card.Card
-	chips       int
-	broadcaster watch.Broadcaster
-	status      Status
+	name             string
+	id               uuid.UUID
+	holeCards        [2]*card.Card
+	chips            int
+	broadcaster      watch.Broadcaster
+	status           Status
+	activeChan       chan struct{}
+	actionChan       chan Action
+	availableActions []Action
 }
 
 func New(opts ...Option) *Player {
 	id := uuid.New()
 	p := &Player{
-		id:     id,
-		status: StatusReady,
+		id:         id,
+		status:     StatusReady,
+		activeChan: make(chan struct{}, 1),
+		actionChan: make(chan Action, 1),
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -115,12 +120,23 @@ func (p *Player) Status() Status {
 	return p.status
 }
 
-func (p *Player) AvailableActions() []option.Option {
-	var actions []option.Option
+func (p *Player) TakeAction(ctx context.Context, action Action) error {
+	switch action.Type {
+	case ActionCheck:
+	case ActionFold:
 
-	return actions
+	}
 }
 
-func (p *Player) Action(opt option.Option) {
+func (p *Player) Active() chan struct{} {
+	return p.activeChan
+}
 
+func (p *Player) WaitForAction(availableActions []Action) Action {
+	p.status = StatusActive
+	p.activeChan <- struct{}{}
+	p.availableActions = availableActions
+	action := <-p.actionChan
+	p.status = action.Type.IntoStatus()
+	return action
 }

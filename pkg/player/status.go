@@ -3,11 +3,12 @@ package player
 type Status int
 
 const (
-	_ Status = iota
-	StatusFold
-	StatusCheck
-	StatusBet
-	StatusRaise
+	StatusUnknown Status = iota
+	StatusFolded
+	StatusChecked
+	StatusBetted
+	StatusRaised
+	StatusCalled
 	StatusAllIn
 	StatusReady
 	StatusActive // who is taking action
@@ -15,13 +16,13 @@ const (
 
 func (s Status) String() string {
 	switch s {
-	case StatusFold:
+	case StatusFolded:
 		return "Fold"
-	case StatusCheck:
+	case StatusChecked:
 		return "Check"
-	case StatusBet:
+	case StatusBetted:
 		return "Bet"
-	case StatusRaise:
+	case StatusRaised:
 		return "Raise"
 	case StatusAllIn:
 		return "AllIn"
