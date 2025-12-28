@@ -46,7 +46,7 @@ func TestActionTypeString(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			str := tc.actionType.String()
 			if str != tc.want {
-				t.Errorf("String(%v) = %v, want %v", tc.actionType, str, tc.want)
+				t.Errorf("ActionTypeString(%v) = %v, want %v", tc.actionType, str, tc.want)
 			}
 		})
 	}
