@@ -49,7 +49,7 @@ func New(opts ...Option) *Player {
 		actionTimeout: defaultActionTimeout,
 		status:        StatusUnknown,
 		active:        make(chan bool, 1),
-		actionChan:    make(chan Action, 1),
+		actionChan:    make(chan Action),
 	}
 	p.Apply(opts...)
 	if len(p.name) == 0 {

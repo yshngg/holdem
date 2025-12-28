@@ -22,6 +22,8 @@ func (s Status) String() string {
 		return "Bet"
 	case StatusRaised:
 		return "Raise"
+	case StatusCalled:
+		return "Call"
 	case StatusAllIn:
 		return "AllIn"
 	default:
