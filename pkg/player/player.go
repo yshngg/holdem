@@ -97,19 +97,35 @@ func (p *Player) Apply(opts ...Option) {
 	}
 }
 
-// TODO(@yshngg): Implement BestFivePockerHand method
-func (p *Player) BestFivePockerHand(communityCards [5]*card.Card) [5]*card.Card {
+// TODO(@yshngg): Implement BestFiveCard method
+func (p *Player) BestFiveCard(communityCards [5]*card.Card) [5]*card.Card {
 	var bestFive [5]*card.Card
 
 	return bestFive
 }
 
-func (p *Player) Bet(chips int) error {
-	if p.chips < chips {
-		return ErrNotEnoughChips{p.chips, chips}
-	}
-	p.chips -= chips
-	return nil
+func (p *Player) Check(ctx context.Context) error {
+	return p.takeAction(ctx, Action{Type: ActionCheck})
+}
+
+func (p *Player) Fold(ctx context.Context) error {
+	return p.takeAction(ctx, Action{Type: ActionFold})
+}
+
+func (p *Player) Bet(ctx context.Context, chips int) error {
+	return p.takeAction(ctx, Action{Type: ActionBet, Chips: chips})
+}
+
+func (p *Player) Raise(ctx context.Context, chips int) error {
+	return p.takeAction(ctx, Action{Type: ActionRaise, Chips: chips})
+}
+
+func (p *Player) Call(ctx context.Context) error {
+	return p.takeAction(ctx, Action{Type: ActionCall})
+}
+
+func (p *Player) AllIn(ctx context.Context) error {
+	return p.takeAction(ctx, Action{Type: ActionAllIn})
 }
 
 func (p *Player) Name() string {
@@ -140,7 +156,10 @@ func (p *Player) Active() <-chan bool {
 	return p.active
 }
 
-func (p *Player) TakeAction(ctx context.Context, action Action) error {
+func (p *Player) takeAction(ctx context.Context, action Action) error {
+	ctx, cancel := context.WithTimeoutCause(ctx, p.actionTimeout, fmt.Errorf("action timeout"))
+	defer cancel()
+
 	if p.availableActions == nil {
 		return fmt.Errorf("not have available actions")
 	}
@@ -151,25 +170,35 @@ func (p *Player) TakeAction(ctx context.Context, action Action) error {
 
 	switch action.Type {
 	case ActionCheck, ActionFold:
-		p.actionChan <- action
-	case ActionBet, ActionCall, ActionRaise:
+	case ActionBet, ActionRaise:
 		// Equivalent to: !(require.Chips <= action.Chips <= p.chips)
 		if require.Chips > action.Chips || action.Chips > p.chips {
 			return fmt.Errorf("not enough chips: %d, can not take the action: %v", p.chips, action)
 		}
 		p.chips -= action.Chips
-		p.actionChan <- action
-		return nil
+	case ActionCall:
+		// Equivalent to: !(require.Chips <= p.chips)
+		if require.Chips > p.chips {
+			return fmt.Errorf("not enough chips: %d, can not take the action: %v", p.chips, action)
+		}
+		action.Chips = require.Chips
+		p.chips -= require.Chips
 	case ActionAllIn:
 		if p.chips <= 0 {
 			return fmt.Errorf("not enough chips: %d", p.chips)
 		}
 		action.Chips = p.chips
 		p.chips = 0
-		p.actionChan <- action
-		return nil
+	default:
+		return fmt.Errorf("unknown action type: %v", action.Type)
 	}
-	return nil
+
+	select {
+	case p.actionChan <- action:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("failed to take action: %v, reason: %w", action, ctx.Err())
+	}
 }
 
 func (p *Player) WaitForAction(ctx context.Context, availableActions map[ActionType]Action) Action {
