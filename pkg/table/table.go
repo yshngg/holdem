@@ -1,8 +1,8 @@
 package table
 
 import (
-	"github.com/yshngg/holdem/pkg/game/round"
 	"github.com/yshngg/holdem/pkg/player"
+	"github.com/yshngg/holdem/pkg/round"
 )
 
 type Table struct {

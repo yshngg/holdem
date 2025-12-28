@@ -108,14 +108,7 @@ func (r *Round) playerStartWatching(ctx context.Context) error {
 			// TODO(@yshngg): implement filter function
 			return in, true
 		})
-		go func(p *player.Player) {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				p.Watch(watcher)
-			}
-		}(p)
+		player.WithWatcher(watcher)
 	}
 
 	return nil
@@ -179,6 +172,7 @@ func (r *Round) Start(ctx context.Context) error {
 
 	// dealer shuffle deck
 	r.dealer.Shuffle()
+	r.broadcaster.Action(dealer.EventShuffle, dealer.EventObject{})
 
 	// compulsory bets
 	if err := r.betBlind(); err != nil {
@@ -188,6 +182,13 @@ func (r *Round) Start(ctx context.Context) error {
 	// pre-flop
 	r.status = StatusPreFlop
 	cards := r.dealer.DealHoleCards(playerCount)
+	r.broadcaster.Action(dealer.EventHoleCards, dealer.EventObject{})
+	for i, p := range r.players {
+		if p == nil {
+			continue
+		}
+		p.WaitForAction(ctx, []player.Action{})
+	}
 	// for i, p := range r.effectivePlayers() {
 	// p.SetHoleCards(cards[(r.button+i)%len(cards)])
 	// }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/yshngg/holdem/pkg/card"
 	"github.com/yshngg/holdem/pkg/deck"
-	"k8s.io/apimachinery/pkg/watch"
 )
 
 type Dealer struct {
@@ -39,10 +38,6 @@ func WithDeck(_deck *deck.Deck) Option {
 	return func(d *Dealer) {
 		d.deck = _deck
 	}
-}
-
-func (d *Dealer) Watch(watch.Interface) {
-
 }
 
 func (d *Dealer) Reset() {

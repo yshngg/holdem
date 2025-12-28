@@ -4,13 +4,18 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/yshngg/holdem/pkg/card"
 	"github.com/yshngg/holdem/pkg/watch"
 )
 
-const defaultChips = 100
+const (
+	defaultChips         = 100
+	defaultActionTimeout = 5 * time.Second
+)
 
 type ErrNotEnoughChips struct {
 	Have int
@@ -22,26 +27,29 @@ func (e ErrNotEnoughChips) Error() string {
 }
 
 type Player struct {
-	name        string
-	id          uuid.UUID
-	holeCards   [2]*card.Card
-	chips       int
-	broadcaster watch.Broadcaster
-	status      Status
+	name          string
+	id            uuid.UUID
+	actionTimeout time.Duration
+	holeCards     [2]*card.Card
+	chips         int
+	watcher       watch.Interface
+	status        Status
 
 	// for action handling
-	activeChan       chan struct{}
+	done             sync.Once
+	active           chan bool
 	actionChan       chan Action
-	availableActions []Action
+	availableActions map[ActionType]Action
 }
 
 func New(opts ...Option) *Player {
 	id := uuid.New()
 	p := &Player{
-		id:         id,
-		status:     StatusReady,
-		activeChan: make(chan struct{}, 1),
-		actionChan: make(chan Action, 1),
+		id:            id,
+		actionTimeout: defaultActionTimeout,
+		status:        StatusUnknown,
+		active:        make(chan bool, 1),
+		actionChan:    make(chan Action, 1),
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -69,18 +77,20 @@ func WithChips(chips int) Option {
 	}
 }
 
-func (p *Player) Watch(w watch.Interface) {
-	defer w.Stop()
-	for e := range w.ResultChan() {
-		switch e.Type {
-		case Check:
-		case Fold:
-		case Bet:
-		case Call:
-		case Raise:
-		case AllIn:
-		}
+func WithActionTimeout(timeout time.Duration) Option {
+	return func(p *Player) {
+		p.actionTimeout = timeout
 	}
+}
+
+func WithWatcher(watcher watch.Interface) Option {
+	return func(p *Player) {
+		p.watcher = watcher
+	}
+}
+
+func (p *Player) Watch() <-chan watch.Event {
+	return p.watcher.ResultChan()
 }
 
 // TODO(@yshngg): Implement BestFivePockerHand method
@@ -122,23 +132,86 @@ func (p *Player) Status() Status {
 	return p.status
 }
 
+func (p *Player) Active() <-chan bool {
+	return p.active
+}
+
 func (p *Player) TakeAction(ctx context.Context, action Action) error {
-	switch action.Type {
-	case ActionCheck:
-	case ActionFold:
-
+	if p.availableActions == nil {
+		return fmt.Errorf("not have available actions")
 	}
+	require, ok := p.availableActions[action.Type]
+	if !ok {
+		return fmt.Errorf("not available action: %v, available action: %v", action, p.availableActions)
+	}
+
+	switch action.Type {
+	case ActionCheck, ActionFold:
+		p.actionChan <- action
+	case ActionBet, ActionCall, ActionRaise:
+		// Equivalent to: !(require.Chips <= action.Chips <= p.chips)
+		if require.Chips > action.Chips || action.Chips > p.chips {
+			return fmt.Errorf("not enough chips: %d, can not take the action: %v", p.chips, action)
+		}
+		p.chips -= action.Chips
+		p.actionChan <- action
+		return nil
+	case ActionAllIn:
+		if p.chips <= 0 {
+			return fmt.Errorf("not enough chips: %d", p.chips)
+		}
+		action.Chips = p.chips
+		p.chips = 0
+		p.actionChan <- action
+		return nil
+	}
+	return nil
 }
 
-func (p *Player) Active() chan struct{} {
-	return p.activeChan
-}
+func (p *Player) WaitForAction(ctx context.Context, availableActions map[ActionType]Action) Action {
+	ctx, cancel := context.WithTimeoutCause(ctx, p.actionTimeout, fmt.Errorf("action timeout"))
+	defer cancel()
 
-func (p *Player) WaitForAction(availableActions []Action) Action {
-	p.status = StatusActive
-	p.activeChan <- struct{}{}
+	// drain active and action channels
+Drain:
+	for {
+		select {
+		case <-p.active:
+		case <-p.actionChan:
+		default:
+			if len(p.active) == 0 && len(p.actionChan) == 0 {
+				break Drain
+			}
+		}
+	}
+
+	p.active <- true
 	p.availableActions = availableActions
-	action := <-p.actionChan
+	defer func() {
+		p.availableActions = nil
+	}()
+
+	action := Action{Type: ActionFold}
+	select {
+	case <-ctx.Done():
+		<-p.active
+		if _, ok := p.availableActions[ActionCheck]; ok {
+			action = Action{Type: ActionCheck}
+		}
+
+	case action = <-p.actionChan:
+	}
+
 	p.status = action.Type.IntoStatus()
 	return action
+}
+
+func (p *Player) Done() {
+	if p.watcher != nil {
+		p.watcher.Stop()
+	}
+	p.done.Do(func() {
+		close(p.active)
+		close(p.actionChan)
+	})
 }

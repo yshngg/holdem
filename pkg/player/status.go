@@ -10,8 +10,6 @@ const (
 	StatusRaised
 	StatusCalled
 	StatusAllIn
-	StatusReady
-	StatusActive // who is taking action
 )
 
 func (s Status) String() string {
@@ -26,10 +24,6 @@ func (s Status) String() string {
 		return "Raise"
 	case StatusAllIn:
 		return "AllIn"
-	case StatusReady:
-		return "Ready"
-	case StatusActive:
-		return "Active"
 	default:
 		return "Unknown"
 	}

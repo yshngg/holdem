@@ -5,7 +5,6 @@ import (
 
 	"github.com/yshngg/holdem/pkg/card"
 	"github.com/yshngg/holdem/pkg/dealer"
-	"github.com/yshngg/holdem/pkg/deck"
 	"github.com/yshngg/holdem/pkg/rank"
 	"github.com/yshngg/holdem/pkg/suit"
 )
@@ -203,7 +202,7 @@ func TestValue(t *testing.T) {
 func BenchmarkValue(b *testing.B) {
 	for b.Loop() {
 		b.StopTimer()
-		d := dealer.New(deck.New())
+		d := dealer.New()
 		d.Shuffle()
 		cards := []card.Card{
 			*d.Deal(),

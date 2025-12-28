@@ -7,12 +7,12 @@ import (
 type EventType watch.EventType
 
 const (
-	Check = watch.PlayerCheck
-	Fold  = watch.PlayerFold
-	Bet   = watch.PlayerBet
-	Call  = watch.PlayerCall
-	Raise = watch.PlayerRaise
-	AllIn = watch.PlayerAllIn
+	EventCheck = watch.PlayerCheck
+	EventFold  = watch.PlayerFold
+	EventBet   = watch.PlayerBet
+	EventCall  = watch.PlayerCall
+	EventRaise = watch.PlayerRaise
+	EventAllIn = watch.PlayerAllIn
 )
 
 type EventObject struct {
