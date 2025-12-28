@@ -3,7 +3,7 @@ package player
 type ActionType int
 
 const (
-	_ ActionType = iota
+	ActionUnknown ActionType = iota
 	ActionCheck
 	ActionFold
 	ActionBet
