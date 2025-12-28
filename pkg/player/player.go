@@ -51,9 +51,7 @@ func New(opts ...Option) *Player {
 		active:        make(chan bool, 1),
 		actionChan:    make(chan Action, 1),
 	}
-	for _, opt := range opts {
-		opt(p)
-	}
+	p.Apply(opts...)
 	if len(p.name) == 0 {
 		p.name = base64.StdEncoding.EncodeToString([]byte(id.String()))[:7]
 	}
@@ -91,6 +89,12 @@ func WithWatcher(watcher watch.Interface) Option {
 
 func (p *Player) Watch() <-chan watch.Event {
 	return p.watcher.ResultChan()
+}
+
+func (p *Player) Apply(opts ...Option) {
+	for _, opt := range opts {
+		opt(p)
+	}
 }
 
 // TODO(@yshngg): Implement BestFivePockerHand method

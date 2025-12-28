@@ -95,7 +95,7 @@ func WithWatcher(watcher watch.Interface) Option {
 	}
 }
 
-func (r *Round) playerStartWatching(ctx context.Context) error {
+func (r *Round) prepare(ctx context.Context) error {
 	for _, p := range r.players {
 		if p == nil {
 			continue
@@ -108,7 +108,7 @@ func (r *Round) playerStartWatching(ctx context.Context) error {
 			// TODO(@yshngg): implement filter function
 			return in, true
 		})
-		player.WithWatcher(watcher)
+		p.Apply(player.WithWatcher(watcher))
 	}
 
 	return nil
@@ -161,8 +161,8 @@ func (r *Round) Start(ctx context.Context) error {
 		return fmt.Errorf("invalid player count: %d", playerCount)
 	}
 
-	// players start watching events
-	err := r.playerStartWatching(ctx)
+	// prepare players
+	err := r.prepare(ctx)
 	if err != nil {
 		return fmt.Errorf("start round, err: %w", err)
 	}
