@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/yshngg/holdem/pkg/watch"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestWatch(t *testing.T) {
@@ -22,23 +23,18 @@ func TestWatch(t *testing.T) {
 		{Type: EventAllIn, Object: nil},
 	}
 
-	errChan := make(chan error, 0)
-	go func() {
-		defer close(errChan)
-
+	g := new(errgroup.Group)
+	g.Go(func() error {
 		// player.watcher.Stop()
 		defer player.Done()
 		for _, event := range events {
 			err := broadcaster.Action(event.Type, event.Type)
-			errChan <- err
+			if err != nil {
+				return err
+			}
 		}
-	}()
-
-	for err := range errChan {
-		if err != nil {
-			t.Errorf("broadcaster action, err: %v", err)
-		}
-	}
+		return nil
+	})
 
 	for _, want := range events {
 		got := <-player.Watch()
@@ -46,20 +42,25 @@ func TestWatch(t *testing.T) {
 			t.Errorf("event type: %v, want: %v", got.Type, want.Type)
 		}
 	}
+
+	if err = g.Wait(); err != nil {
+		t.Fatalf("broadcaster action, err: %v", err)
+	}
 }
 
 func TestAction(t *testing.T) {
 	player := New()
-	errChan := make(chan error, 1)
-	go func(p *Player) {
+	g := errgroup.Group{}
+	g.Go(func() error {
 		err := player.Check(t.Context())
-		errChan <- err
-	}(player)
+		return err
+	})
 	action := player.WaitForAction(t.Context(), map[ActionType]Action{
 		ActionCheck: {ActionCheck, 0},
 		ActionBet:   {ActionBet, 2},
 	})
-	if err := <-errChan; err != nil {
+
+	if err := g.Wait(); err != nil {
 		t.Fatalf("player check action error: %v", err)
 	}
 	if action.Type != ActionCheck {
