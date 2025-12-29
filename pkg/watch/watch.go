@@ -39,7 +39,7 @@ const (
 
 type Interface interface {
 	Stop()
-	ResultChan() <-chan Event
+	Watch() <-chan Event
 }
 
 var (
@@ -64,6 +64,6 @@ func (w emptyWatch) Stop() {
 }
 
 // ResultChan implements Interface
-func (w emptyWatch) ResultChan() <-chan Event {
+func (w emptyWatch) Watch() <-chan Event {
 	return chan Event(w)
 }

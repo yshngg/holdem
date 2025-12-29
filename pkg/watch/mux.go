@@ -212,7 +212,7 @@ type broadcasterWatcher struct {
 }
 
 // ResultChan returns a channel to use for waiting on events.
-func (mw *broadcasterWatcher) ResultChan() <-chan Event {
+func (mw *broadcasterWatcher) Watch() <-chan Event {
 	return mw.result
 }
 

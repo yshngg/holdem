@@ -31,7 +31,7 @@ type filteredWatch struct {
 }
 
 // ResultChan returns a channel which will receive filtered events.
-func (fw *filteredWatch) ResultChan() <-chan Event {
+func (fw *filteredWatch) Watch() <-chan Event {
 	return fw.result
 }
 
@@ -43,7 +43,7 @@ func (fw *filteredWatch) Stop() {
 // loop waits for new values, filters them, and resends them.
 func (fw *filteredWatch) loop() {
 	defer close(fw.result)
-	for event := range fw.incoming.ResultChan() {
+	for event := range fw.incoming.Watch() {
 		filtered, keep := fw.f(event)
 		if keep {
 			fw.result <- filtered

@@ -88,7 +88,11 @@ func WithWatcher(watcher watch.Interface) Option {
 }
 
 func (p *Player) Watch() <-chan watch.Event {
-	return p.watcher.ResultChan()
+	out := watch.Filter(p.watcher, func(in watch.Event) (watch.Event, bool) {
+		// TODO(@yshngg): Implement filtering logic
+		return in, true
+	})
+	return out.Watch()
 }
 
 func (p *Player) Apply(opts ...Option) {
