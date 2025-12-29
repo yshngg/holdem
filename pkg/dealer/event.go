@@ -1,6 +1,7 @@
 package dealer
 
 import (
+	"github.com/yshngg/holdem/pkg/card"
 	"github.com/yshngg/holdem/pkg/watch"
 )
 
@@ -16,4 +17,9 @@ const (
 )
 
 type EventObject struct {
+	HoleCards  [2]*card.Card
+	FlopCards  [3]*card.Card
+	TurnCard   *card.Card
+	RiverCard  *card.Card
+	BuriedCard []*card.Card
 }

@@ -8,6 +8,8 @@ const (
 	internalRunFunctionMarker EventType = iota // internal do function
 
 	// Player Event
+	PlayerPostSmallBlind
+	PlayerPostBigBlind
 	PlayerCheck
 	PlayerFold
 	PlayerBet

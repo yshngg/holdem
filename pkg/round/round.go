@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/yshngg/holdem/pkg/card"
 	"github.com/yshngg/holdem/pkg/dealer"
 	"github.com/yshngg/holdem/pkg/player"
 	"github.com/yshngg/holdem/pkg/watch"
@@ -18,11 +19,12 @@ const (
 )
 
 type Round struct {
-	players []*player.Player // position: player (if any)
-	dealer  *dealer.Dealer
-	button  int
-	minBet  int
-	status  Status
+	players        []*player.Player // position: player (if any)
+	dealer         *dealer.Dealer
+	button         int
+	minBet         int
+	status         Status
+	communityCards []*card.Card
 
 	recorder    watch.Recorder
 	broadcaster watch.Broadcaster
@@ -114,13 +116,24 @@ func (r *Round) prepare(ctx context.Context) error {
 	return nil
 }
 
-func (r *Round) playerCount() (count int) {
-	for _, p := range r.players {
+func realPlayerCount(players []*player.Player) int {
+	count := 0
+	for _, p := range players {
+		if p != nil {
+			count++
+		}
+	}
+	return count
+}
+
+func effectivePlayerCount(players []*player.Player) int {
+	count := 0
+	for _, p := range players {
 		if p != nil && p.Status() != player.StatusFolded && p.Status() != player.StatusInvalid {
 			count++
 		}
 	}
-	return
+	return count
 }
 
 type ErrInvalidPlayerCount struct {
@@ -142,11 +155,6 @@ func (e ErrInvalidButton) Error() string {
 func positionBlind(players []*player.Player, button int) (int, int, error) {
 	count := 0
 	length := len(players)
-	for _, p := range players {
-		if p != nil {
-			count++
-		}
-	}
 	if MaxPlayerCount < count || count < MinPlayerCount {
 		return -1, -1, ErrInvalidPlayerCount{count: count}
 	}
@@ -187,9 +195,11 @@ func (r *Round) betBlind(ctx context.Context) error {
 	if err := r.players[small].Bet(ctx, r.minBet/2); err != nil {
 		return fmt.Errorf("post small blind: %w", err)
 	}
+	r.broadcaster.Action(player.EventPostSmallBlind, player.EventObject{Player: r.players[small], Bet: r.minBet / 2})
 	if err := r.players[big].Bet(ctx, r.minBet); err != nil {
 		return fmt.Errorf("post big blind: %w", err)
 	}
+	r.broadcaster.Action(player.EventPostBigBlind, player.EventObject{Player: r.players[big], Bet: r.minBet})
 	return nil
 }
 
@@ -197,9 +207,10 @@ func (r *Round) Start(ctx context.Context) error {
 	if r.players[r.button] == nil {
 		return fmt.Errorf("button position does not have player")
 	}
-	playerCount := r.playerCount()
-	if playerCount < MinPlayerCount || playerCount > MaxPlayerCount {
-		return fmt.Errorf("invalid player count: %d", playerCount)
+	realPlayerCount := realPlayerCount(r.players)
+	effectivePlayerCount := effectivePlayerCount(r.players)
+	if effectivePlayerCount < MinPlayerCount || effectivePlayerCount > MaxPlayerCount {
+		return fmt.Errorf("invalid player count: %d", effectivePlayerCount)
 	}
 
 	// prepare players
@@ -216,44 +227,62 @@ func (r *Round) Start(ctx context.Context) error {
 	r.broadcaster.Action(dealer.EventShuffle, dealer.EventObject{})
 
 	// compulsory bets
-	// if err := r.betBlind(); err != nil {
-	// 	return err
-	// }
+	if err := r.betBlind(ctx); err != nil {
+		return fmt.Errorf("bet blind, err: %w", err)
+	}
 
 	// pre-flop
 	r.status = StatusPreFlop
-	cards := r.dealer.DealHoleCards(playerCount)
-	r.broadcaster.Action(dealer.EventHoleCards, dealer.EventObject{})
-	for _, p := range r.players {
+	r.dealer.BurnCard()
+	holeCards := r.dealer.DealHoleCards(realPlayerCount)
+	for i := range len(r.players) {
+		p := r.players[(r.button+i+1)%len(r.players)]
 		if p == nil {
+			continue
+		}
+		p.SetHoleCards(holeCards[i])
+		r.broadcaster.Action(dealer.EventHoleCards, dealer.EventObject{HoleCards: holeCards[i]})
+	}
+
+	// TODO(@yshngg): Implement pre-flop betting logic
+	for _, p := range r.players {
+		if p == nil || p.Status() == player.StatusInvalid {
 			continue
 		}
 		p.WaitForAction(ctx, map[player.ActionType]player.Action{
-			player.ActionCheck: player.Action{},
-			player.ActionCall:  player.Action{},
-			player.ActionBet:   player.Action{},
-			player.ActionRaise: player.Action{},
+			player.ActionCall:  {},
+			player.ActionRaise: {},
 		})
 	}
-	// for i, p := range r.effectivePlayers() {
-	// p.SetHoleCards(cards[(r.button+i)%len(cards)])
-	// }
-	for i := range playerCount {
-		p := r.players[i]
-		if p == nil {
+
+	// flop
+	r.status = StatusFlop
+	r.dealer.BurnCard()
+	flopCards := r.dealer.DealFlopCards()
+	for _, card := range flopCards {
+		r.communityCards = append(r.communityCards, card)
+	}
+	for _, p := range r.players {
+		if p == nil || p.Status() == player.StatusInvalid || p.Status() == player.StatusFolded {
 			continue
 		}
-		r.players[i].SetHoleCards(cards[i])
+		r.broadcaster.Action(dealer.EventFlopCards, dealer.EventObject{FlopCards: flopCards})
 	}
-
-	// flop
-	r.status = StatusFlop
-
-	// flop
-	r.status = StatusFlop
 
 	// turn
 	r.status = StatusTurn
+	r.dealer.BurnCard()
+	turnCard := r.dealer.DealTurnCard()
+	for _, p := range r.players {
+		if p == nil || p.Status() == player.StatusInvalid {
+			continue
+		}
+		r.broadcaster.Action(dealer.EventTurnCard, dealer.EventObject{TurnCard: turnCard})
+		p.WaitForAction(ctx, map[player.ActionType]player.Action{
+			player.ActionCall:  {},
+			player.ActionRaise: {},
+		})
+	}
 
 	// river
 	r.status = StatusRiver

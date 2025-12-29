@@ -157,3 +157,51 @@ func TestBlindPositions(t *testing.T) {
 		})
 	}
 }
+
+func TestRealPlayerCount(t *testing.T) {
+	testCases := []struct {
+		name    string
+		players []*player.Player
+		want    int
+	}{
+		{
+			name:    "Empty",
+			players: []*player.Player{},
+			want:    0,
+		},
+		{
+			name:    "OnePlayer",
+			players: []*player.Player{player.New()},
+			want:    1,
+		},
+		{
+			name:    "TwoPlayers",
+			players: []*player.Player{player.New(), player.New()},
+			want:    2,
+		},
+		{
+			name:    "ThreePlayers",
+			players: []*player.Player{player.New(), player.New(), player.New()},
+			want:    3,
+		},
+		{
+			name:    "FourPlayers",
+			players: []*player.Player{player.New(), player.New(), player.New(), player.New()},
+			want:    4,
+		},
+		{
+			name:    "FivePlayers",
+			players: []*player.Player{player.New(), player.New(), player.New(), player.New(), player.New()},
+			want:    5,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			count := realPlayerCount(tc.players)
+			if count != tc.want {
+				t.Errorf("real player count: %v, want: %v", count, tc.want)
+			}
+		})
+	}
+}
