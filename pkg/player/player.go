@@ -47,7 +47,7 @@ func New(opts ...Option) *Player {
 	p := &Player{
 		id:            id,
 		actionTimeout: defaultActionTimeout,
-		status:        StatusUnknown,
+		status:        StatusInvalid,
 		active:        make(chan bool, 1),
 		actionChan:    make(chan Action),
 	}
@@ -194,7 +194,7 @@ func (p *Player) takeAction(ctx context.Context, action Action) error {
 		action.Chips = p.chips
 		p.chips = 0
 	default:
-		return fmt.Errorf("unknown action type: %v", action.Type)
+		return fmt.Errorf("invalid action type: %v", action.Type)
 	}
 
 	select {

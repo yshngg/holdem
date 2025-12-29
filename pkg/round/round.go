@@ -116,7 +116,7 @@ func (r *Round) prepare(ctx context.Context) error {
 
 func (r *Round) playerCount() (count int) {
 	for _, p := range r.players {
-		if p != nil {
+		if p != nil && p.Status() != player.StatusFolded {
 			count++
 		}
 	}

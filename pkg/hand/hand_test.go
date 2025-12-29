@@ -156,7 +156,7 @@ func TestValue(t *testing.T) {
 				card.New(rank.King, suit.Hearts),
 				card.New(rank.Ace, suit.Hearts),
 			},
-			want: Unknown,
+			want: Invalid,
 			err:  ErrInvalidHandSize{},
 		},
 		{
@@ -169,7 +169,7 @@ func TestValue(t *testing.T) {
 				card.New(rank.King, suit.Hearts),
 				card.New(rank.Ace, suit.Hearts),
 			},
-			want: Unknown,
+			want: Invalid,
 			err:  ErrInvalidHandSize{},
 		},
 		{
@@ -181,7 +181,7 @@ func TestValue(t *testing.T) {
 				card.New(rank.Ace, suit.Hearts),
 				card.New(rank.Ace, suit.Hearts),
 			},
-			want: Unknown,
+			want: Invalid,
 			err:  ErrExistSameCards{},
 		},
 	}

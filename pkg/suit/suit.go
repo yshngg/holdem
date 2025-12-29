@@ -21,6 +21,6 @@ func (s Suit) String() string {
 	case Diamonds:
 		return "Diamonds"
 	default:
-		return "Unknown"
+		return "Invalid"
 	}
 }

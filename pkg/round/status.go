@@ -3,7 +3,7 @@ package round
 type Status int
 
 const (
-	StatusUnknown Status = iota
+	StatusInvalid Status = iota
 	StatusReady
 	StatusStart
 	StatusPreFlop
@@ -31,7 +31,7 @@ func (s Status) String() string {
 	case StatusEnd:
 		return "End"
 	default:
-		return "Unknown"
+		return "Invalid"
 	}
 }
 
@@ -50,7 +50,7 @@ func (s Status) Next() Status {
 	case StatusShowdown:
 		return StatusEnd
 	default:
-		return StatusUnknown
+		return StatusInvalid
 	}
 }
 
@@ -67,6 +67,6 @@ func (s Status) Previous() Status {
 	case StatusPreFlop:
 		return StatusStart
 	default:
-		return StatusUnknown
+		return StatusInvalid
 	}
 }

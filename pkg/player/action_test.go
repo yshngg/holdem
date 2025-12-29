@@ -8,7 +8,7 @@ func TestActionTypeIntoStatus(t *testing.T) {
 		actionType ActionType
 		want       Status
 	}{
-		{"Unknown", ActionUnknown, StatusUnknown},
+		{"Invalid", ActionInvalid, StatusInvalid},
 		{"Check", ActionCheck, StatusChecked},
 		{"Fold", ActionFold, StatusFolded},
 		{"Bet", ActionBet, StatusBetted},
@@ -33,7 +33,7 @@ func TestActionTypeString(t *testing.T) {
 		actionType ActionType
 		want       string
 	}{
-		{"Unknown", ActionUnknown, "Unknown"},
+		{"Invalid", ActionInvalid, "Invalid"},
 		{"Check", ActionCheck, "Check"},
 		{"Fold", ActionFold, "Fold"},
 		{"Bet", ActionBet, "Bet"},

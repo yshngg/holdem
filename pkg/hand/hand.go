@@ -8,7 +8,7 @@ import (
 type Hand int
 
 const (
-	Unknown       Hand = iota
+	Invalid       Hand = iota
 	HighCard           // Simple value of the card. Lowest: 2 – Highest: Ace (King in the example)
 	Pair               // Two cards with the same value
 	TwoPairs           // Two times two cards with the same value
@@ -44,7 +44,7 @@ func (hv Hand) String() string {
 	case RoyalFlush:
 		return "Royal Flush"
 	default:
-		return "Unknown"
+		return "Invalid"
 	}
 }
 
@@ -81,10 +81,10 @@ func Value(c []card.Card) (Hand, error) {
 	cards := make([]card.Card, len(c))
 	copy(cards, c)
 	if len(cards) != 5 {
-		return Unknown, ErrInvalidHandSize{}
+		return Invalid, ErrInvalidHandSize{}
 	}
 	if existSameCards(cards) {
-		return Unknown, ErrExistSameCards{}
+		return Invalid, ErrExistSameCards{}
 	}
 
 	m := make(map[rank.Rank]int)
@@ -93,7 +93,7 @@ func Value(c []card.Card) (Hand, error) {
 	}
 
 	if len(m) < 2 {
-		return Unknown, nil
+		return Invalid, nil
 	}
 
 	product := 1
@@ -163,5 +163,5 @@ func Value(c []card.Card) (Hand, error) {
 			return HighCard, nil
 		}
 	}
-	return Unknown, ErrUnknownHandValue{}
+	return Invalid, ErrUnknownHandValue{}
 }

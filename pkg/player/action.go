@@ -3,7 +3,7 @@ package player
 type ActionType int
 
 const (
-	ActionUnknown ActionType = iota
+	ActionInvalid ActionType = iota
 	ActionCheck
 	ActionFold
 	ActionBet
@@ -27,7 +27,7 @@ func (at ActionType) String() string {
 	case ActionAllIn:
 		return "AllIn"
 	default:
-		return "Unknown"
+		return "Invalid"
 	}
 }
 
@@ -46,7 +46,7 @@ func (at ActionType) IntoStatus() Status {
 	case ActionAllIn:
 		return StatusAllIn
 	default:
-		return StatusUnknown
+		return StatusInvalid
 	}
 }
 

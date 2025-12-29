@@ -3,7 +3,7 @@ package player
 type Status int
 
 const (
-	StatusUnknown Status = iota
+	StatusInvalid Status = iota
 	StatusFolded
 	StatusChecked
 	StatusBetted
@@ -27,6 +27,6 @@ func (s Status) String() string {
 	case StatusAllIn:
 		return "AllIn"
 	default:
-		return "Unknown"
+		return "Invalid"
 	}
 }

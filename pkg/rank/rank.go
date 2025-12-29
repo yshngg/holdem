@@ -48,7 +48,7 @@ func (r Rank) String() string {
 	case Ace:
 		return "Ace"
 	default:
-		return "Unknown"
+		return "Invalid"
 	}
 }
 
