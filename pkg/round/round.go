@@ -18,13 +18,13 @@ const (
 )
 
 type Round struct {
-	players []*player.Player
+	players []*player.Player // position: player (if any)
 	dealer  *dealer.Dealer
 	button  int
 	minBet  int
 	status  Status
 
-	watcher     watch.Interface
+	recorder    watch.Recorder
 	broadcaster watch.Broadcaster
 }
 
@@ -52,13 +52,13 @@ func New(players []*player.Player, opts ...Option) *Round {
 		queueLength := len(players) * 2
 		r.broadcaster = watch.NewBroadcaster(queueLength, queueLength)
 	}
-	if r.watcher == nil {
+	if r.recorder == nil {
 		watcher, err := r.broadcaster.Watch()
 		// should not have an error
 		if err != nil {
 			panic(err)
 		}
-		r.watcher = watcher
+		r.recorder = watch.NewRecorder(watcher)
 	}
 	return r
 }
@@ -89,9 +89,9 @@ func WithBroadcaster(broadcaster watch.Broadcaster) Option {
 	}
 }
 
-func WithWatcher(watcher watch.Interface) Option {
+func WithRecorder(recorder watch.Recorder) Option {
 	return func(r *Round) {
-		r.watcher = watcher
+		r.recorder = recorder
 	}
 }
 
@@ -116,37 +116,78 @@ func (r *Round) prepare(ctx context.Context) error {
 
 func (r *Round) playerCount() (count int) {
 	for _, p := range r.players {
-		if p != nil && p.Status() != player.StatusFolded {
+		if p != nil && p.Status() != player.StatusFolded && p.Status() != player.StatusInvalid {
 			count++
 		}
 	}
 	return
 }
 
-func (r *Round) blindPositions() (int, int) {
-	small := (r.button + 1) % len(r.players)
-	big := 0
-	for range len(r.players) {
-		if r.players[small] == nil {
-			small = (small + 1) % len(r.players)
-			big = small
-			continue
-		}
-		big = (big + 1) % len(r.players)
-		if r.players[big] != nil {
-			break
-		}
-	}
-	return small, big
+type ErrInvalidPlayerCount struct {
+	count int
 }
 
-func (r *Round) betBlind() error {
-	small, big := r.blindPositions()
+func (e ErrInvalidPlayerCount) Error() string {
+	return fmt.Sprintf("invalid player count: %d", e.count)
+}
 
-	if err := r.players[small].Bet(r.minBet / 2); err != nil {
+type ErrInvalidButton struct {
+	button int
+}
+
+func (e ErrInvalidButton) Error() string {
+	return fmt.Sprintf("invalid button: %d", e.button)
+}
+
+func blindPositions(players []*player.Player, button int) (int, int, error) {
+	count := 0
+	length := len(players)
+	for _, p := range players {
+		if p != nil {
+			count++
+		}
+	}
+	if MaxPlayerCount < count || count < MinPlayerCount {
+		return -1, -1, ErrInvalidPlayerCount{count: count}
+	}
+	if button < 0 || length <= button || players[button] == nil {
+		return -1, -1, ErrInvalidButton{button: button}
+	}
+	if count == 2 {
+		small := button
+		big := (small + 1) % length
+		for players[big] == nil {
+			big = (big + 1) % length
+		}
+		return button, big, nil
+	}
+
+	small := (button + 1) % length
+	big := (small + 1) % length
+	for range length {
+		if players[small] == nil {
+			small = (small + 1) % length
+			big = (small + 1) % length
+			continue
+		}
+		if players[big] != nil {
+			break
+		}
+		big = (big + 1) % length
+	}
+	return small, big, nil
+}
+
+func (r *Round) betBlind(ctx context.Context) error {
+	small, big, err := blindPositions(r.players, r.button)
+	if err != nil {
+		return fmt.Errorf("blind positions, err: %v", err)
+	}
+
+	if err := r.players[small].Bet(ctx, r.minBet/2); err != nil {
 		return fmt.Errorf("post small blind: %w", err)
 	}
-	if err := r.players[big].Bet(r.minBet); err != nil {
+	if err := r.players[big].Bet(ctx, r.minBet); err != nil {
 		return fmt.Errorf("post big blind: %w", err)
 	}
 	return nil
@@ -175,19 +216,24 @@ func (r *Round) Start(ctx context.Context) error {
 	r.broadcaster.Action(dealer.EventShuffle, dealer.EventObject{})
 
 	// compulsory bets
-	if err := r.betBlind(); err != nil {
-		return err
-	}
+	// if err := r.betBlind(); err != nil {
+	// 	return err
+	// }
 
 	// pre-flop
 	r.status = StatusPreFlop
 	cards := r.dealer.DealHoleCards(playerCount)
 	r.broadcaster.Action(dealer.EventHoleCards, dealer.EventObject{})
-	for i, p := range r.players {
+	for _, p := range r.players {
 		if p == nil {
 			continue
 		}
-		p.WaitForAction(ctx, []player.Action{})
+		p.WaitForAction(ctx, map[player.ActionType]player.Action{
+			player.ActionCheck: player.Action{},
+			player.ActionCall:  player.Action{},
+			player.ActionBet:   player.Action{},
+			player.ActionRaise: player.Action{},
+		})
 	}
 	// for i, p := range r.effectivePlayers() {
 	// p.SetHoleCards(cards[(r.button+i)%len(cards)])
