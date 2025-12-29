@@ -144,7 +144,7 @@ func TestBlindPositions(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			small, big, err := blindPositions(tc.players, tc.button)
+			small, big, err := positionBlind(tc.players, tc.button)
 			if err != tc.want.err {
 				t.Errorf("err: %v, want: %v", err, tc.want.err)
 			}

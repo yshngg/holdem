@@ -139,7 +139,7 @@ func (e ErrInvalidButton) Error() string {
 	return fmt.Sprintf("invalid button: %d", e.button)
 }
 
-func blindPositions(players []*player.Player, button int) (int, int, error) {
+func positionBlind(players []*player.Player, button int) (int, int, error) {
 	count := 0
 	length := len(players)
 	for _, p := range players {
@@ -179,7 +179,7 @@ func blindPositions(players []*player.Player, button int) (int, int, error) {
 }
 
 func (r *Round) betBlind(ctx context.Context) error {
-	small, big, err := blindPositions(r.players, r.button)
+	small, big, err := positionBlind(r.players, r.button)
 	if err != nil {
 		return fmt.Errorf("blind positions, err: %v", err)
 	}
