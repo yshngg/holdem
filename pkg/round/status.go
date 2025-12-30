@@ -35,6 +35,14 @@ func (s Status) String() string {
 	}
 }
 
+func (s Status) After(other Status) bool {
+	return s > other
+}
+
+func (s Status) Before(other Status) bool {
+	return s < other
+}
+
 func (s Status) Next() Status {
 	switch s {
 	case StatusStart:

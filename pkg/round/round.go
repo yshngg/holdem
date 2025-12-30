@@ -2,6 +2,7 @@ package round
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/yshngg/holdem/pkg/card"
@@ -19,15 +20,25 @@ const (
 )
 
 type Round struct {
-	players        []*player.Player // position: player (if any)
+	// players represents the relationship between positions
+	// and their corresponding players in the round.
+	// Must not be modified after round start.
+	players        []*player.Player
 	dealer         *dealer.Dealer
 	button         int
 	minBet         int
-	status         Status
 	communityCards []*card.Card
 
-	recorder    watch.Recorder
+	// recorder is used to record events during the round.
+	// Such as: logging events, etc.
+	recorder watch.Recorder
+
+	// broadcaster is used to broadcast events to all players.
 	broadcaster watch.Broadcaster
+
+	// status indicates the current stage of the round.
+	// Such as: pre-flop, flop, turn, river, showdown, etc.
+	status Status
 }
 
 func New(players []*player.Player, opts ...Option) *Round {
@@ -95,6 +106,45 @@ func WithRecorder(recorder watch.Recorder) Option {
 	return func(r *Round) {
 		r.recorder = recorder
 	}
+}
+
+func existsPlayer(players []*player.Player, player *player.Player) bool {
+	for _, p := range players {
+		if p.ID() == player.ID() {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Round) AddPlayer(player *player.Player) error {
+	if r.status.After(StatusReady) {
+		return errors.New("round has started")
+	}
+	if existsPlayer(r.players, player) {
+		return errors.New("player already exists")
+	}
+	for _, p := range r.players {
+		if p == nil {
+			p = player
+			return nil
+		}
+	}
+	r.players = append(r.players, player)
+	return nil
+}
+
+func (r *Round) RemovePlayer(player *player.Player) error {
+	if r.status.After(StatusReady) {
+		return errors.New("round has started")
+	}
+	for _, p := range r.players {
+		if p.ID() == player.ID() {
+			p = nil
+			return nil
+		}
+	}
+	return errors.New("player does not exist")
 }
 
 func (r *Round) prepare(ctx context.Context) error {
@@ -213,14 +263,14 @@ func (r *Round) Start(ctx context.Context) error {
 		return fmt.Errorf("invalid player count: %d", effectivePlayerCount)
 	}
 
+	// ready to start the round
+	r.status = StatusStart
+
 	// prepare players
 	err := r.prepare(ctx)
 	if err != nil {
 		return fmt.Errorf("start round, err: %w", err)
 	}
-
-	// ready to start the round
-	r.status = StatusStart
 
 	// dealer shuffle deck
 	r.dealer.Shuffle()
