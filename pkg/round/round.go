@@ -8,6 +8,7 @@ import (
 	"github.com/yshngg/holdem/pkg/card"
 	"github.com/yshngg/holdem/pkg/dealer"
 	"github.com/yshngg/holdem/pkg/player"
+	"github.com/yshngg/holdem/pkg/pot"
 	"github.com/yshngg/holdem/pkg/watch"
 )
 
@@ -20,24 +21,41 @@ const (
 )
 
 type Round struct {
-	// players represents the relationship between positions
-	// and their corresponding players in the round.
-	// Must not be modified after round start.
-	players        []*player.Player
-	dealer         *dealer.Dealer
-	button         int
-	minBet         int
+	// players is a slice of players indexed by their position at the table.
+	// The slice length corresponds to the maximum number of seats.
+	// Must not be modified after the round starts.
+	players []*player.Player
+
+	// dealer handles card shuffling and dealing operations.
+	// Responsible for dealing hole cards to players and community cards to the table.
+	dealer *dealer.Dealer
+
+	// button is the position of the dealer button in the round.
+	// The player immediately to the left of the button posts the small blind.
+	button int
+
+	// minBet is the minimum bet required to call in the current round.
+	// Typically equals the big blind amount (double the small blind).
+	minBet int
+
+	// communityCards are the shared cards visible to all players.
+	// The length progresses through 0 (pre-flop), 3 (flop), 4 (turn), and 5 (river).
 	communityCards []*card.Card
 
-	// recorder is used to record events during the round.
-	// Such as: logging events, etc.
+	// pots holds all active pots in the round, including the main pot and side pots.
+	// pots[0] is always the main pot; subsequent elements are side pots (if any).
+	pots []pot.Pot
+
+	// recorder captures all game events for replay, debugging, or auditing purposes.
+	// It logs actions like bets, folds, and card deals.
 	recorder watch.Recorder
 
-	// broadcaster is used to broadcast events to all players.
+	// broadcaster delivers real-time game events to all connected players.
+	// Ensures players receive synchronized updates about round state changes.
 	broadcaster watch.Broadcaster
 
-	// status indicates the current stage of the round.
-	// Such as: pre-flop, flop, turn, river, showdown, etc.
+	// status tracks the current stage of the poker round.
+	// See the Status type for all possible values (pre-flop, flop, turn, river, etc.).
 	status Status
 }
 
@@ -166,26 +184,6 @@ func (r *Round) prepare(ctx context.Context) error {
 	return nil
 }
 
-func realPlayerCount(players []*player.Player) int {
-	count := 0
-	for _, p := range players {
-		if p != nil {
-			count++
-		}
-	}
-	return count
-}
-
-func effectivePlayerCount(players []*player.Player) int {
-	count := 0
-	for _, p := range players {
-		if p != nil && p.Status() != player.StatusFolded && p.Status() != player.StatusInvalid {
-			count++
-		}
-	}
-	return count
-}
-
 type ErrInvalidPlayerCount struct {
 	count int
 }
@@ -202,40 +200,6 @@ func (e ErrInvalidButton) Error() string {
 	return fmt.Sprintf("invalid button: %d", e.button)
 }
 
-func positionBlind(players []*player.Player, button int) (int, int, error) {
-	count := 0
-	length := len(players)
-	if MaxPlayerCount < count || count < MinPlayerCount {
-		return -1, -1, ErrInvalidPlayerCount{count: count}
-	}
-	if button < 0 || length <= button || players[button] == nil {
-		return -1, -1, ErrInvalidButton{button: button}
-	}
-	if count == 2 {
-		small := button
-		big := (small + 1) % length
-		for players[big] == nil {
-			big = (big + 1) % length
-		}
-		return button, big, nil
-	}
-
-	small := (button + 1) % length
-	big := (small + 1) % length
-	for range length {
-		if players[small] == nil {
-			small = (small + 1) % length
-			big = (small + 1) % length
-			continue
-		}
-		if players[big] != nil {
-			break
-		}
-		big = (big + 1) % length
-	}
-	return small, big, nil
-}
-
 func (r *Round) betBlind(ctx context.Context) error {
 	small, big, err := positionBlind(r.players, r.button)
 	if err != nil {
@@ -245,11 +209,16 @@ func (r *Round) betBlind(ctx context.Context) error {
 	if err := r.players[small].Bet(ctx, r.minBet/2); err != nil {
 		return fmt.Errorf("post small blind: %w", err)
 	}
-	r.broadcaster.Action(player.EventPostSmallBlind, player.EventObject{Player: r.players[small], Bet: r.minBet / 2})
 	if err := r.players[big].Bet(ctx, r.minBet); err != nil {
 		return fmt.Errorf("post big blind: %w", err)
 	}
-	r.broadcaster.Action(player.EventPostBigBlind, player.EventObject{Player: r.players[big], Bet: r.minBet})
+
+	if err = r.broadcaster.Action(player.EventPostSmallBlind, player.EventObject{Player: r.players[small], Bet: r.minBet / 2}); err != nil {
+		return fmt.Errorf("broadcaster action, err: %w", err)
+	}
+	if err = r.broadcaster.Action(player.EventPostBigBlind, player.EventObject{Player: r.players[big], Bet: r.minBet}); err != nil {
+		return fmt.Errorf("broadcaster action, err: %w", err)
+	}
 	return nil
 }
 
@@ -274,7 +243,9 @@ func (r *Round) Start(ctx context.Context) error {
 
 	// dealer shuffle deck
 	r.dealer.Shuffle()
-	r.broadcaster.Action(dealer.EventShuffle, dealer.EventObject{})
+	if err = r.broadcaster.Action(dealer.EventShuffle, dealer.EventObject{}); err != nil {
+		return fmt.Errorf("broadcaster action, err: %w", err)
+	}
 
 	// compulsory bets
 	if err := r.betBlind(ctx); err != nil {
@@ -283,26 +254,44 @@ func (r *Round) Start(ctx context.Context) error {
 
 	// pre-flop
 	r.status = StatusPreFlop
-	r.dealer.BurnCard()
 	holeCards := r.dealer.DealHoleCards(realPlayerCount)
 	for i := range len(r.players) {
 		p := r.players[(r.button+i+1)%len(r.players)]
-		if p == nil {
+		if p == nil || p.Status() != player.StatusReady {
 			continue
 		}
 		p.SetHoleCards(holeCards[i])
-		r.broadcaster.Action(dealer.EventHoleCards, dealer.EventObject{HoleCards: holeCards[i]})
+		if err = r.broadcaster.Action(dealer.EventHoleCards, dealer.EventObject{HoleCards: holeCards[i]}); err != nil {
+			return fmt.Errorf("broadcaster action, err: %w", err)
+		}
 	}
 
-	// TODO(@yshngg): Implement pre-flop betting logic
-	for _, p := range r.players {
-		if p == nil || p.Status() == player.StatusInvalid {
+	// pre-flop betting round
+	preflopBet := r.minBet
+	for i := range len(r.players) {
+		p := r.players[(r.button+i+3)%len(r.players)]
+		if p == nil || p.Status() != player.StatusReady {
 			continue
 		}
-		p.WaitForAction(ctx, map[player.ActionType]player.Action{
-			player.ActionCall:  {},
-			player.ActionRaise: {},
+		action := p.WaitForAction(ctx, []player.Action{
+			{Type: player.ActionFold, Chips: 0},
+			{Type: player.ActionCall, Chips: preflopBet},
+			{Type: player.ActionRaise, Chips: preflopBet * 2},
+			// {Type: player.ActionAllIn, Chips: 0},
 		})
+		switch action.Type {
+		case player.ActionFold:
+		case player.ActionCall:
+		case player.ActionRaise:
+			preflopBet = action.Chips
+		case player.ActionAllIn:
+			// TODO(@yshngg): Handle all-in action
+		default:
+			return fmt.Errorf("invalid action type")
+		}
+		if err = r.broadcaster.Action(action.Type.IntoEventType(), player.EventObject{Player: p, Bet: action.Chips}); err != nil {
+			return fmt.Errorf("broadcaster action, err: %w", err)
+		}
 	}
 
 	// flop
@@ -312,8 +301,9 @@ func (r *Round) Start(ctx context.Context) error {
 	for _, card := range flopCards {
 		r.communityCards = append(r.communityCards, card)
 	}
+	flopBet := 0
 	for _, p := range r.players {
-		if p == nil || p.Status() == player.StatusInvalid || p.Status() == player.StatusFolded {
+		if p == nil || p.Status() == player.StatusFolded {
 			continue
 		}
 		r.broadcaster.Action(dealer.EventFlopCards, dealer.EventObject{FlopCards: flopCards})
@@ -323,19 +313,48 @@ func (r *Round) Start(ctx context.Context) error {
 	r.status = StatusTurn
 	r.dealer.BurnCard()
 	turnCard := r.dealer.DealTurnCard()
+	r.communityCards = append(r.communityCards, turnCard)
 	for _, p := range r.players {
-		if p == nil || p.Status() == player.StatusInvalid {
+		if p == nil || p.Status() == player.StatusFolded {
 			continue
 		}
 		r.broadcaster.Action(dealer.EventTurnCard, dealer.EventObject{TurnCard: turnCard})
-		p.WaitForAction(ctx, map[player.ActionType]player.Action{
-			player.ActionCall:  {},
-			player.ActionRaise: {},
+		action := p.WaitForAction(ctx, []player.Action{
+			{Type: player.ActionFold, Chips: 0},
+			{Type: player.ActionCall, Chips: preflopBet},
+			{Type: player.ActionRaise, Chips: preflopBet * 2},
+			// {Type: player.ActionAllIn, Chips: 0},
 		})
+		if err = r.broadcaster.Action(action.Type.IntoEventType(), player.EventObject{Player: p, Bet: action.Chips}); err != nil {
+			return fmt.Errorf("broadcaster action, err: %w", err)
+		}
 	}
 
 	// river
 	r.status = StatusRiver
+	r.dealer.BurnCard()
+	riverCard := r.dealer.DealTurnCard()
+	r.communityCards = append(r.communityCards, riverCard)
+	for _, p := range r.players {
+		if p == nil || p.Status() == player.StatusFolded {
+			continue
+		}
+		if err = r.broadcaster.Action(dealer.EventRiverCard, dealer.EventObject{RiverCard: riverCard}); err != nil {
+			return fmt.Errorf("broadcaster action, err: %w", err)
+		}
+		if p.Status() == player.StatusAllIn {
+			continue
+		}
+		action := p.WaitForAction(ctx, []player.Action{
+			{Type: player.ActionFold, Chips: 0},
+			{Type: player.ActionCall, Chips: preflopBet},
+			{Type: player.ActionRaise, Chips: preflopBet * 2},
+			// {Type: player.ActionAllIn, Chips: 0},
+		})
+		if err = r.broadcaster.Action(action.Type.IntoEventType(), player.EventObject{Player: p, Bet: action.Chips}); err != nil {
+			return fmt.Errorf("broadcaster action, err: %w", err)
+		}
+	}
 
 	// showdown
 	r.status = StatusShowdown

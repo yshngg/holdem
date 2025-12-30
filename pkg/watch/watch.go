@@ -7,6 +7,9 @@ type EventType int
 const (
 	internalRunFunctionMarker EventType = iota // internal do function
 
+	// Invalid
+	EventTypeInvalid
+
 	// Player Event
 	PlayerPostSmallBlind
 	PlayerPostBigBlind

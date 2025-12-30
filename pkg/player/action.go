@@ -50,6 +50,25 @@ func (at ActionType) IntoStatus() Status {
 	}
 }
 
+func (at ActionType) IntoEventType() EventType {
+	switch at {
+	case ActionCheck:
+		return EventCheck
+	case ActionFold:
+		return EventFold
+	case ActionBet:
+		return EventBet
+	case ActionCall:
+		return EventCall
+	case ActionRaise:
+		return EventRaise
+	case ActionAllIn:
+		return EventAllIn
+	default:
+		return EventInvalid
+	}
+}
+
 type Action struct {
 	Type ActionType
 

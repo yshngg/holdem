@@ -211,9 +211,14 @@ func (p *Player) takeAction(ctx context.Context, action Action) error {
 	}
 }
 
-func (p *Player) WaitForAction(ctx context.Context, availableActions map[ActionType]Action) Action {
+func (p *Player) WaitForAction(ctx context.Context, actions []Action) Action {
 	ctx, cancel := context.WithTimeoutCause(ctx, p.actionTimeout, fmt.Errorf("action timeout"))
 	defer cancel()
+
+	availableActions := make(map[ActionType]Action)
+	for _, action := range actions {
+		availableActions[action.Type] = action
+	}
 
 	// drain active and action channels
 Drain:

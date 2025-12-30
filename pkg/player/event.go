@@ -4,9 +4,10 @@ import (
 	"github.com/yshngg/holdem/pkg/watch"
 )
 
-type EventType watch.EventType
+type EventType = watch.EventType
 
 const (
+	EventInvalid        = watch.EventTypeInvalid
 	EventPostSmallBlind = watch.PlayerPostSmallBlind
 	EventPostBigBlind   = watch.PlayerPostBigBlind
 	EventCheck          = watch.PlayerCheck

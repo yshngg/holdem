@@ -55,9 +55,9 @@ func TestAction(t *testing.T) {
 		err := player.Check(t.Context())
 		return err
 	})
-	action := player.WaitForAction(t.Context(), map[ActionType]Action{
-		ActionCheck: {ActionCheck, 0},
-		ActionBet:   {ActionBet, 2},
+	action := player.WaitForAction(t.Context(), []Action{
+		{ActionCheck, 0},
+		{ActionBet, 2},
 	})
 
 	if err := g.Wait(); err != nil {
