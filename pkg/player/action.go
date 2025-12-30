@@ -46,7 +46,7 @@ func (at ActionType) IntoStatus() Status {
 	case ActionAllIn:
 		return StatusAllIn
 	default:
-		return StatusInvalid
+		return StatusReady
 	}
 }
 

@@ -8,7 +8,7 @@ func TestStatusString(t *testing.T) {
 		status Status
 		want   string
 	}{
-		{"Invalid", StatusInvalid, "Invalid"},
+		{"Ready", StatusReady, "Ready"},
 		{"Check", StatusChecked, "Check"},
 		{"Fold", StatusFolded, "Fold"},
 		{"Bet", StatusBetted, "Bet"},

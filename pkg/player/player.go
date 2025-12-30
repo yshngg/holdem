@@ -47,7 +47,7 @@ func New(opts ...Option) *Player {
 	p := &Player{
 		id:            id,
 		actionTimeout: defaultActionTimeout,
-		status:        StatusInvalid,
+		status:        StatusReady,
 		active:        make(chan bool, 1),
 		actionChan:    make(chan Action),
 	}
@@ -72,6 +72,12 @@ func WithName(name string) Option {
 func WithChips(chips int) Option {
 	return func(p *Player) {
 		p.chips = chips
+	}
+}
+
+func WithStatus(status Status) Option {
+	return func(p *Player) {
+		p.status = status
 	}
 }
 
