@@ -1,7 +1,6 @@
 package pots
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -25,9 +24,9 @@ func TestPotsSettle(t *testing.T) {
 				{amount: 300, by: id3},
 			},
 			want: []Pot{
-				pot{contributors: []string{id1, id2, id3}, chips: 300},
-				pot{contributors: []string{id2, id3}, chips: 200},
-				pot{contributors: []string{id3}, chips: 100},
+				pot{contributors: map[string]struct{}{id1: {}, id2: {}, id3: {}}, chips: 300},
+				pot{contributors: map[string]struct{}{id2: {}, id3: {}}, chips: 200},
+				pot{contributors: map[string]struct{}{id3: {}}, chips: 100},
 			},
 		},
 		{
@@ -38,9 +37,9 @@ func TestPotsSettle(t *testing.T) {
 				{amount: 300, by: id3},
 			},
 			want: []Pot{
-				pot{contributors: []string{id1, id2, id3}, chips: 300},
-				pot{contributors: []string{id1, id3}, chips: 200},
-				pot{contributors: []string{id3}, chips: 100},
+				pot{contributors: map[string]struct{}{id1: {}, id2: {}, id3: {}}, chips: 300},
+				pot{contributors: map[string]struct{}{id1: {}, id3: {}}, chips: 200},
+				pot{contributors: map[string]struct{}{id3: {}}, chips: 100},
 			},
 		},
 		{
@@ -51,9 +50,9 @@ func TestPotsSettle(t *testing.T) {
 				{amount: 100, by: id3},
 			},
 			want: []Pot{
-				pot{contributors: []string{id1, id2, id3}, chips: 300},
-				pot{contributors: []string{id1, id2}, chips: 200},
-				pot{contributors: []string{id1}, chips: 100},
+				pot{contributors: map[string]struct{}{id1: {}, id2: {}, id3: {}}, chips: 300},
+				pot{contributors: map[string]struct{}{id1: {}, id2: {}}, chips: 200},
+				pot{contributors: map[string]struct{}{id1: {}}, chips: 100},
 			},
 		},
 	}
@@ -75,12 +74,8 @@ func TestPotsSettle(t *testing.T) {
 			if len(gotPot.Contributors()) != len(wantPot.Contributors()) {
 				t.Errorf("got %v, want %v", gotPot.Contributors(), wantPot.Contributors())
 			}
-			for _, wc := range wantPot.Contributors() {
-				if !slices.ContainsFunc(gotPot.Contributors(),
-					func(gc string) bool {
-						return gc == wc
-					},
-				) {
+			for wc := range wantPot.Contributors() {
+				if _, exists := gotPot.Contributors()[wc]; !exists {
 					t.Errorf("got %v, want %v", gotPot.Contributors(), wantPot.Contributors())
 				}
 			}

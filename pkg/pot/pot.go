@@ -1,25 +1,25 @@
 package pots
 
 type Pot interface {
-	Contributors() []string
+	Contributors() map[string]struct{}
 	Chips() int
 }
 
 type pot struct {
-	contributors []string
+	contributors map[string]struct{}
 	chips        int
 }
 
 var _ Pot = pot{}
 
-func newPot(ids []string, chips int) Pot {
+func newPot(contributors map[string]struct{}, chips int) Pot {
 	return pot{
-		contributors: ids,
+		contributors: contributors,
 		chips:        chips,
 	}
 }
 
-func (p pot) Contributors() []string {
+func (p pot) Contributors() map[string]struct{} {
 	return p.contributors
 }
 

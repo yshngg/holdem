@@ -66,10 +66,10 @@ func (p pots) Settle() (potList []Pot) {
 			continue
 		}
 		chipsList[i].amount -= amount // That is: chipsList[i].amount = 0
-		contributors := []string{tmp.by}
+		contributors := map[string]struct{}{tmp.by: {}}
 		for j := i + 1; j < len(chipsList); j++ {
 			chipsList[j].amount -= amount
-			contributors = append(contributors, chipsList[j].by)
+			contributors[chipsList[j].by] = struct{}{}
 		}
 		potList = append(potList, newPot(contributors, amount*len(contributors)))
 	}
