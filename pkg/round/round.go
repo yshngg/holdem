@@ -229,34 +229,19 @@ func (r *Round) Status() StatusType {
 	return r.status
 }
 
-func (r *Round) bettingRound(ctx context.Context, br BettingRound) (err error) {
-	bet := 0
-	minRaise := 0
-	// playerBetChips := make(map[string]int)
+func (r *Round) bettingRound(ctx context.Context) (err error) {
+	maxBet := 0
+	minRaise := r.minBet
+	betChips := make(map[string]int) // bet chips in current betting round
 	start := -1
 	if r.Status() == StatusPreFlop {
-		bet = r.minBet
-		minRaise = r.minBet
-		// sb, bb, err := positionBlind(r.players, r.button)
-		// if err != nil {
-		// 	return fmt.Errorf("position blind, err: %w", err)
-		// }
-		// playerBetChips[r.players[sb].ID().String()] = r.minBet / 2
-		// playerBetChips[r.players[bb].ID().String()] = r.minBet
-		// for i := range len(r.players) - 2 {
-		// 	p := r.players[(bb+i+1)%len(r.players)]
-		// 	if p != nil {
-		// 		start = bb + i + 1
-		// 		break
-		// 	}
-		// }
+		maxBet = r.minBet
 		start, err = positionUTG(r.players, r.button)
 		if err != nil {
 			return fmt.Errorf("betting round, err: %w", err)
 		}
 	} else {
-		bet = 0
-		minRaise = 0
+		maxBet = 0
 		start, err = positionFirstToAct(r.players, r.button)
 		if err != nil {
 			return fmt.Errorf("betting round, err: %w", err)
@@ -266,50 +251,126 @@ func (r *Round) bettingRound(ctx context.Context, br BettingRound) (err error) {
 		return fmt.Errorf("can not find utg")
 	}
 
-	highestBetChips := 0
-
 	keep := func() bool {
-		highestBetPosition := 0
-		for i, p := range r.players {
-			if p == nil || p.Status() != player.StatusWaitingToAct {
+		chipsList := make([]int, 0, len(betChips))
+		for pid, chips := range betChips {
+			if chips < 0 {
+				return true
+			}
+			p := findPlayerByID(r.players, pid)
+			if p == nil {
+				return true
+			}
+			if p.Status() != player.StatusWaitingToAct {
 				continue
 			}
-			bet, acted := playerBetChips[p.ID().String()]
-			if !acted || bet < 0 {
-				continue
-			}
-			if bet > highestBetChips {
-				highestBetChips = bet
-				highestBetPosition = i
-			}
+			chipsList = append(chipsList, chips)
 		}
 
-		for i := range len(r.players) - 1 {
-			p := r.players[(highestBetPosition+i+1)%len(r.players)]
-			if p == nil || p.Status() != player.StatusWaitingToAct {
-				continue
-			}
-			bet, acted := playerBetChips[p.ID().String()]
-			if bet < 0 {
-				continue
-			}
-			if !acted || bet < highestBetChips {
+		if len(chipsList) < 1 {
+			return true
+		}
+
+		first := chipsList[0]
+		for _, chips := range chipsList[1:] {
+			if chips != first {
 				return true
 			}
 		}
+
 		return false
 	}
 
+	// keep := func() bool {
+	// 	highestBetPosition := 0
+	// 	for i, p := range r.players {
+	// 		if p == nil || p.Status() != player.StatusWaitingToAct {
+	// 			continue
+	// 		}
+	// 		bet, acted := playerBetChips[p.ID().String()]
+	// 		if !acted || bet < 0 {
+	// 			continue
+	// 		}
+	// 		if bet > highestBetChips {
+	// 			highestBetChips = bet
+	// 			highestBetPosition = i
+	// 		}
+	// 	}
+
+	// 	for i := range len(r.players) - 1 {
+	// 		p := r.players[(highestBetPosition+i+1)%len(r.players)]
+	// 		if p == nil || p.Status() != player.StatusWaitingToAct {
+	// 			continue
+	// 		}
+	// 		bet, acted := playerBetChips[p.ID().String()]
+	// 		if bet < 0 {
+	// 			continue
+	// 		}
+	// 		if !acted || bet < highestBetChips {
+	// 			return true
+	// 		}
+	// 	}
+	// 	return false
+	// }
+
+	p := r.players[(start)%len(r.players)]
+
+	if p == nil || p.Status() != player.StatusWaitingToAct {
+		return fmt.Errorf("err: %w", err)
+	}
+	haveBet := betChips[p.ID().String()]
+	availableActions := []player.Action{
+		{
+			Type: player.ActionFold,
+		},
+		{
+			Type: player.ActionAllIn,
+		},
+	}
+	if maxBet == 0 {
+		availableActions = append(availableActions, []player.Action{
+			{
+				Type:  player.ActionBet,
+				Chips: r.minBet,
+			},
+			{
+				Type: player.ActionCheck,
+			},
+		}...)
+	} else {
+		availableActions = []player.Action{
+			{
+				Type:  player.ActionCall,
+				Chips: minRaise,
+			},
+			{
+				Type:  player.ActionRaise,
+				Chips: minRaise + (maxBet - haveBet),
+			},
+		}
+	}
+	action := p.WaitForAction(ctx, availableActions)
+	r.pots.AddChips(p.ID().String(), action.Chips)
+
+	if action.Type == player.ActionRaise || action.Type == player.ActionAllIn {
+		minRaise = action.Chips - maxBet
+		maxBet = action.Chips + haveBet
+	}
+	if action.Type == player.ActionBet {
+		maxBet = action.Chips
+		minRaise = action.Chips
+	}
+
 	for keep() { // reopen the betting action
-		for i := range len(r.players) {
-			p := r.players[(start+i)%len(r.players)]
+		for i := range len(r.players) - 1 {
+			p := r.players[(start+i+1)%len(r.players)]
 			if p == nil || p.Status() != player.StatusWaitingToAct {
 				continue
 			}
-			bet, acted := playerBetChips[p.ID().String()]
-			if acted && bet < 0 {
-				continue
-			}
+			// bet, acted := playerBetChips[p.ID().String()]
+			// if acted && bet < 0 {
+			// 	continue
+			// }
 			availableActions := []player.Action{
 				{
 					Type: player.ActionFold,
@@ -317,19 +378,8 @@ func (r *Round) bettingRound(ctx context.Context, br BettingRound) (err error) {
 				{
 					Type: player.ActionAllIn,
 				},
-				{
-					Type:  player.ActionRaise,
-					Chips: (highestBetChips - bet) * 2,
-				},
 			}
-			if bet < highestBetChips {
-				availableActions = []player.Action{
-					{
-						Type:  player.ActionCall,
-						Chips: highestBetChips - bet,
-					},
-				}
-			} else if highestBetChips == 0 {
+			if maxBet == 0 {
 				availableActions = append(availableActions, []player.Action{
 					{
 						Type:  player.ActionBet,
@@ -339,16 +389,32 @@ func (r *Round) bettingRound(ctx context.Context, br BettingRound) (err error) {
 						Type: player.ActionCheck,
 					},
 				}...)
+			} else {
+				availableActions = []player.Action{
+					{
+						Type:  player.ActionCall,
+						Chips: minRaise,
+					},
+					{
+						Type: player.ActionRaise,
+						// Chips: (highestBetChips - bet) * 2,
+						Chips: minRaise + (maxBet - haveBet),
+					},
+				}
 			}
 			action := p.WaitForAction(ctx, availableActions)
+			r.pots.AddChips(p.ID().String(), action.Chips)
 
-			// TODO(@yshngg): how to handle all in action?
-			if action.Type == player.ActionRaise {
+			if action.Type == player.ActionRaise || action.Type == player.ActionAllIn {
+				minRaise = action.Chips - maxBet
 				start += i
 				break
 			}
+			if action.Type == player.ActionBet {
+				maxBet = action.Chips
+				minRaise = action.Chips
+			}
 		}
-		// p = r.players[(utgi+1)%len(r.players)]
 	}
 
 	return nil
@@ -433,7 +499,6 @@ func (r *Round) Start(ctx context.Context) error {
 	for _, card := range flopCards {
 		r.communityCards = append(r.communityCards, card)
 	}
-	flopBet := 0
 	for _, p := range r.players {
 		if p == nil || p.Status() == player.StatusFolded {
 			continue

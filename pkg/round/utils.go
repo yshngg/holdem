@@ -2,6 +2,15 @@ package round
 
 import "github.com/yshngg/holdem/pkg/player"
 
+func findPlayerByID(players []*player.Player, id string) *player.Player {
+	for _, p := range players {
+		if p != nil && p.ID().String() == id {
+			return p
+		}
+	}
+	return nil
+}
+
 func positionBlind(players []*player.Player, button int) (int, int, error) {
 	count := realPlayerCount(players)
 	length := len(players)
