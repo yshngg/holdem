@@ -9,11 +9,11 @@ func TestActionTypeIntoStatus(t *testing.T) {
 		want       StatusType
 	}{
 		{"Invalid", ActionInvalid, StatusReady},
-		{"Check", ActionCheck, StatusWaiting},
+		{"Check", ActionCheck, StatusWaitingToAct},
 		{"Fold", ActionFold, StatusFolded},
-		{"Bet", ActionBet, StatusWaiting},
-		{"Call", ActionCall, StatusWaiting},
-		{"Raise", ActionRaise, StatusWaiting},
+		{"Bet", ActionBet, StatusWaitingToAct},
+		{"Call", ActionCall, StatusWaitingToAct},
+		{"Raise", ActionRaise, StatusWaitingToAct},
 		{"All-In", ActionAllIn, StatusAllIn},
 	}
 

@@ -101,7 +101,7 @@ func realPlayers(players []*player.Player) []*player.Player {
 func effectivePlayerCount(players []*player.Player) int {
 	count := 0
 	for _, p := range players {
-		if p != nil && p.Status() != player.StatusFolded {
+		if p != nil && (p.Status() == player.StatusWaitingToAct || p.Status() == player.StatusTakingAction || p.Status() != player.StatusAllIn) {
 			count++
 		}
 	}

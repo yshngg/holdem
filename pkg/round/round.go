@@ -8,7 +8,7 @@ import (
 	"github.com/yshngg/holdem/pkg/card"
 	"github.com/yshngg/holdem/pkg/dealer"
 	"github.com/yshngg/holdem/pkg/player"
-	"github.com/yshngg/holdem/pkg/pot"
+	pots "github.com/yshngg/holdem/pkg/pot"
 	"github.com/yshngg/holdem/pkg/watch"
 )
 
@@ -44,7 +44,7 @@ type Round struct {
 
 	// pots holds all active pots in the round, including the main pot and side pots.
 	// pots[0] is always the main pot; subsequent elements are side pots (if any).
-	pots []pot.Pot
+	pots pots.Pots
 
 	// recorder captures all game events for replay, debugging, or auditing purposes.
 	// It logs actions like bets, folds, and card deals.
@@ -56,7 +56,7 @@ type Round struct {
 
 	// status tracks the current stage of the poker round.
 	// See the Status type for all possible values (pre-flop, flop, turn, river, etc.).
-	status Status
+	status StatusType
 }
 
 func New(players []*player.Player, opts ...Option) *Round {
@@ -213,6 +213,9 @@ func (r *Round) betBlind(ctx context.Context) error {
 		return fmt.Errorf("post big blind: %w", err)
 	}
 
+	r.pots.AddChips(r.players[small].ID().String(), r.minBet/2)
+	r.pots.AddChips(r.players[big].ID().String(), r.minBet)
+
 	if err = r.broadcaster.Action(player.EventPostSmallBlind, player.EventObject{Player: r.players[small], Bet: r.minBet / 2}); err != nil {
 		return fmt.Errorf("broadcaster action, err: %w", err)
 	}
@@ -226,14 +229,49 @@ func (r *Round) Status() StatusType {
 	return r.status
 }
 
-func (r *Round) bettingRound(ctx context.Context) (err error) {
-	playerBetChips := make(map[string]int)
+func (r *Round) bettingRound(ctx context.Context, br BettingRound) (err error) {
+	bet := 0
+	minRaise := 0
+	// playerBetChips := make(map[string]int)
+	start := -1
+	if r.Status() == StatusPreFlop {
+		bet = r.minBet
+		minRaise = r.minBet
+		// sb, bb, err := positionBlind(r.players, r.button)
+		// if err != nil {
+		// 	return fmt.Errorf("position blind, err: %w", err)
+		// }
+		// playerBetChips[r.players[sb].ID().String()] = r.minBet / 2
+		// playerBetChips[r.players[bb].ID().String()] = r.minBet
+		// for i := range len(r.players) - 2 {
+		// 	p := r.players[(bb+i+1)%len(r.players)]
+		// 	if p != nil {
+		// 		start = bb + i + 1
+		// 		break
+		// 	}
+		// }
+		start, err = positionUTG(r.players, r.button)
+		if err != nil {
+			return fmt.Errorf("betting round, err: %w", err)
+		}
+	} else {
+		bet = 0
+		minRaise = 0
+		start, err = positionFirstToAct(r.players, r.button)
+		if err != nil {
+			return fmt.Errorf("betting round, err: %w", err)
+		}
+	}
+	if start < 0 {
+		return fmt.Errorf("can not find utg")
+	}
+
+	highestBetChips := 0
 
 	keep := func() bool {
-		highestBetChips := 0
 		highestBetPosition := 0
 		for i, p := range r.players {
-			if p == nil || p.Status() != player.StatusWaiting {
+			if p == nil || p.Status() != player.StatusWaitingToAct {
 				continue
 			}
 			bet, acted := playerBetChips[p.ID().String()]
@@ -248,47 +286,67 @@ func (r *Round) bettingRound(ctx context.Context) (err error) {
 
 		for i := range len(r.players) - 1 {
 			p := r.players[(highestBetPosition+i+1)%len(r.players)]
-			if p == nil || p.Status() != player.StatusWaiting {
+			if p == nil || p.Status() != player.StatusWaitingToAct {
 				continue
 			}
 			bet, acted := playerBetChips[p.ID().String()]
 			if bet < 0 {
 				continue
 			}
-			if !acted {
-				return true
-			}
-			if 0 < bet && bet < highestBetChips {
+			if !acted || bet < highestBetChips {
 				return true
 			}
 		}
 		return false
 	}
 
-	start := 0
-	if r.Status() == StatusPreFlop {
-		start, err = positionUTG(r.players, r.button)
-		if err != nil {
-			return fmt.Errorf("betting round, err: %w", err)
-		}
-	} else {
-		start, err = positionFirstToAct(r.players, r.button)
-		if err != nil {
-			return fmt.Errorf("betting round, err: %w", err)
-		}
-	}
-
 	for keep() { // reopen the betting action
 		for i := range len(r.players) {
 			p := r.players[(start+i)%len(r.players)]
-			if p == nil || p.Status() != player.StatusWaiting {
+			if p == nil || p.Status() != player.StatusWaitingToAct {
 				continue
 			}
 			bet, acted := playerBetChips[p.ID().String()]
-			if bet < 0 {
+			if acted && bet < 0 {
 				continue
 			}
-			start = i
+			availableActions := []player.Action{
+				{
+					Type: player.ActionFold,
+				},
+				{
+					Type: player.ActionAllIn,
+				},
+				{
+					Type:  player.ActionRaise,
+					Chips: (highestBetChips - bet) * 2,
+				},
+			}
+			if bet < highestBetChips {
+				availableActions = []player.Action{
+					{
+						Type:  player.ActionCall,
+						Chips: highestBetChips - bet,
+					},
+				}
+			} else if highestBetChips == 0 {
+				availableActions = append(availableActions, []player.Action{
+					{
+						Type:  player.ActionBet,
+						Chips: r.minBet,
+					},
+					{
+						Type: player.ActionCheck,
+					},
+				}...)
+			}
+			action := p.WaitForAction(ctx, availableActions)
+
+			// TODO(@yshngg): how to handle all in action?
+			if action.Type == player.ActionRaise {
+				start += i
+				break
+			}
 		}
 		// p = r.players[(utgi+1)%len(r.players)]
 	}

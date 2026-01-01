@@ -53,7 +53,7 @@ func (at ActionType) IntoEventType() EventType {
 func (at ActionType) ToStatus() StatusType {
 	switch at {
 	case ActionCheck, ActionBet, ActionRaise, ActionCall:
-		return StatusWaiting
+		return StatusWaitingToAct
 	case ActionFold:
 		return StatusFolded
 	case ActionAllIn:

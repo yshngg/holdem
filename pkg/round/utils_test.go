@@ -215,14 +215,14 @@ func TestEffectivePlayerCount(t *testing.T) {
 		{
 			name: "ThreePlayers",
 			players: []*player.Player{
-				player.New(player.WithStatus(player.StatusChecked)),
+				player.New(player.WithStatus(player.StatusReady)),
+				player.New(player.WithStatus(player.StatusWaitingToAct)),
+				player.New(player.WithStatus(player.StatusTakingAction)),
 				player.New(player.WithStatus(player.StatusFolded)),
-				player.New(player.WithStatus(player.StatusBetted)),
-				player.New(player.WithStatus(player.StatusCalled)),
-				player.New(player.WithStatus(player.StatusRaised)),
 				player.New(player.WithStatus(player.StatusAllIn)),
+				player.New(player.WithStatus(player.StatusSpectating)),
 			},
-			want: 5,
+			want: 3,
 		},
 	}
 
