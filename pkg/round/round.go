@@ -222,6 +222,80 @@ func (r *Round) betBlind(ctx context.Context) error {
 	return nil
 }
 
+func (r *Round) Status() StatusType {
+	return r.status
+}
+
+func (r *Round) bettingRound(ctx context.Context) (err error) {
+	playerBetChips := make(map[string]int)
+
+	keep := func() bool {
+		highestBetChips := 0
+		highestBetPosition := 0
+		for i, p := range r.players {
+			if p == nil || p.Status() != player.StatusWaiting {
+				continue
+			}
+			bet, acted := playerBetChips[p.ID().String()]
+			if !acted || bet < 0 {
+				continue
+			}
+			if bet > highestBetChips {
+				highestBetChips = bet
+				highestBetPosition = i
+			}
+		}
+
+		for i := range len(r.players) - 1 {
+			p := r.players[(highestBetPosition+i+1)%len(r.players)]
+			if p == nil || p.Status() != player.StatusWaiting {
+				continue
+			}
+			bet, acted := playerBetChips[p.ID().String()]
+			if bet < 0 {
+				continue
+			}
+			if !acted {
+				return true
+			}
+			if 0 < bet && bet < highestBetChips {
+				return true
+			}
+		}
+		return false
+	}
+
+	start := 0
+	if r.Status() == StatusPreFlop {
+		start, err = positionUTG(r.players, r.button)
+		if err != nil {
+			return fmt.Errorf("betting round, err: %w", err)
+		}
+	} else {
+		start, err = positionFirstToAct(r.players, r.button)
+		if err != nil {
+			return fmt.Errorf("betting round, err: %w", err)
+		}
+	}
+
+	for keep() { // reopen the betting action
+		for i := range len(r.players) {
+			p := r.players[(start+i)%len(r.players)]
+			if p == nil || p.Status() != player.StatusWaiting {
+				continue
+			}
+			bet, acted := playerBetChips[p.ID().String()]
+			if bet < 0 {
+				continue
+			}
+			start = i
+		}
+		// p = r.players[(utgi+1)%len(r.players)]
+	}
+
+	return nil
+}
+
 func (r *Round) Start(ctx context.Context) error {
 	if r.players[r.button] == nil {
 		return fmt.Errorf("button position does not have player")

@@ -31,25 +31,6 @@ func (at ActionType) String() string {
 	}
 }
 
-func (at ActionType) IntoStatus() Status {
-	switch at {
-	case ActionCheck:
-		return StatusChecked
-	case ActionFold:
-		return StatusFolded
-	case ActionBet:
-		return StatusBetted
-	case ActionCall:
-		return StatusCalled
-	case ActionRaise:
-		return StatusRaised
-	case ActionAllIn:
-		return StatusAllIn
-	default:
-		return StatusReady
-	}
-}
-
 func (at ActionType) IntoEventType() EventType {
 	switch at {
 	case ActionCheck:
@@ -66,6 +47,19 @@ func (at ActionType) IntoEventType() EventType {
 		return EventAllIn
 	default:
 		return EventInvalid
+	}
+}
+
+func (at ActionType) ToStatus() StatusType {
+	switch at {
+	case ActionCheck, ActionBet, ActionRaise, ActionCall:
+		return StatusWaiting
+	case ActionFold:
+		return StatusFolded
+	case ActionAllIn:
+		return StatusAllIn
+	default:
+		return StatusReady
 	}
 }
 

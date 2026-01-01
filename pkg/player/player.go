@@ -33,7 +33,7 @@ type Player struct {
 	holeCards     [2]*card.Card
 	chips         int
 	watcher       watch.Interface
-	status        Status
+	status        StatusType
 
 	// for action handling
 	done             sync.Once
@@ -75,7 +75,7 @@ func WithChips(chips int) Option {
 	}
 }
 
-func WithStatus(status Status) Option {
+func WithStatus(status StatusType) Option {
 	return func(p *Player) {
 		p.status = status
 	}
@@ -158,7 +158,7 @@ func (p *Player) Chips() int {
 	return p.chips
 }
 
-func (p *Player) Status() Status {
+func (p *Player) Status() StatusType {
 	return p.status
 }
 
@@ -215,6 +215,8 @@ func (p *Player) WaitForAction(ctx context.Context, actions []Action) Action {
 	ctx, cancel := context.WithTimeoutCause(ctx, p.actionTimeout, fmt.Errorf("action timeout"))
 	defer cancel()
 
+	p.status = StatusTakingAction
+
 	availableActions := make(map[ActionType]Action)
 	for _, action := range actions {
 		availableActions[action.Type] = action
@@ -250,7 +252,8 @@ Drain:
 	case action = <-p.actionChan:
 	}
 
-	p.status = action.Type.IntoStatus()
+	// action concluded
+	p.status = action.Type.ToStatus()
 	return action
 }
 

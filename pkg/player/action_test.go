@@ -6,22 +6,22 @@ func TestActionTypeIntoStatus(t *testing.T) {
 	testCases := []struct {
 		name       string
 		actionType ActionType
-		want       Status
+		want       StatusType
 	}{
 		{"Invalid", ActionInvalid, StatusReady},
-		{"Check", ActionCheck, StatusChecked},
+		{"Check", ActionCheck, StatusWaiting},
 		{"Fold", ActionFold, StatusFolded},
-		{"Bet", ActionBet, StatusBetted},
-		{"Call", ActionCall, StatusCalled},
-		{"Raise", ActionRaise, StatusRaised},
+		{"Bet", ActionBet, StatusWaiting},
+		{"Call", ActionCall, StatusWaiting},
+		{"Raise", ActionRaise, StatusWaiting},
 		{"All-In", ActionAllIn, StatusAllIn},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			status := tc.actionType.IntoStatus()
+			status := tc.actionType.ToStatus()
 			if status != tc.want {
-				t.Errorf("IntoStatus(%v) = %v, want %v", tc.actionType, status, tc.want)
+				t.Errorf("ToStatus(%v) = %v, want %v", tc.actionType, status, tc.want)
 			}
 		})
 	}

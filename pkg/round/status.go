@@ -1,9 +1,9 @@
 package round
 
-type Status int
+type StatusType int
 
 const (
-	StatusInvalid Status = iota
+	StatusInvalid StatusType = iota
 	StatusReady
 	StatusStart
 	StatusPreFlop
@@ -14,7 +14,7 @@ const (
 	StatusEnd
 )
 
-func (s Status) String() string {
+func (s StatusType) String() string {
 	switch s {
 	case StatusStart:
 		return "Start"
@@ -35,15 +35,15 @@ func (s Status) String() string {
 	}
 }
 
-func (s Status) After(other Status) bool {
+func (s StatusType) After(other StatusType) bool {
 	return s > other
 }
 
-func (s Status) Before(other Status) bool {
+func (s StatusType) Before(other StatusType) bool {
 	return s < other
 }
 
-func (s Status) Next() Status {
+func (s StatusType) Next() StatusType {
 	switch s {
 	case StatusStart:
 		return StatusPreFlop
@@ -62,7 +62,7 @@ func (s Status) Next() Status {
 	}
 }
 
-func (s Status) Previous() Status {
+func (s StatusType) Previous() StatusType {
 	switch s {
 	case StatusEnd:
 		return StatusRiver

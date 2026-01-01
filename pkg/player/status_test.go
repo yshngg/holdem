@@ -5,16 +5,14 @@ import "testing"
 func TestStatusString(t *testing.T) {
 	testCases := []struct {
 		name   string
-		status Status
+		status StatusType
 		want   string
 	}{
 		{"Ready", StatusReady, "Ready"},
-		{"Check", StatusChecked, "Check"},
-		{"Fold", StatusFolded, "Fold"},
-		{"Bet", StatusBetted, "Bet"},
-		{"Call", StatusCalled, "Call"},
-		{"Raise", StatusRaised, "Raise"},
-		{"All-In", StatusAllIn, "AllIn"},
+		{"Waiting", StatusWaiting, "Waiting"},
+		{"TakingAction", StatusTakingAction, "TakingAction"},
+		{"Folded", StatusFolded, "Folded"},
+		{"AllIn", StatusAllIn, "AllIn"},
 	}
 
 	for _, tc := range testCases {
