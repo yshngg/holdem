@@ -45,6 +45,6 @@ func (s *Table) Start() error {
 	return nil
 }
 
-func (s *Session) Destroy() error {
+func (s *Table) Destroy() error {
 	return nil
 }

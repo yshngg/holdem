@@ -229,10 +229,10 @@ func (r *Round) Status() StatusType {
 	return r.status
 }
 
-func (r *Round) bettingRound(ctx context.Context) (err error) {
+func (r *Round) openBettingRound(ctx context.Context) (err error) {
 	maxBet := 0
 	minRaise := r.minBet
-	betChips := make(map[string]int) // bet chips in current betting round
+	betChips := make(map[string]int) // chips that have bet in current betting round
 	start := -1
 	if r.Status() == StatusPreFlop {
 		maxBet = r.minBet
@@ -248,25 +248,33 @@ func (r *Round) bettingRound(ctx context.Context) (err error) {
 		}
 	}
 	if start < 0 {
-		return fmt.Errorf("can not find utg")
+		return fmt.Errorf("can not find first player to act")
 	}
 
 	keep := func() bool {
-		chipsList := make([]int, 0, len(betChips))
-		for pid, chips := range betChips {
-			if chips < 0 {
-				return true
-			}
-			p := findPlayerByID(r.players, pid)
-			if p == nil {
-				return true
-			}
-			if p.Status() != player.StatusWaitingToAct {
-				continue
-			}
-			chipsList = append(chipsList, chips)
+		if effectivePlayerCount(r.players) != len(betChips) {
+			return true
 		}
 
+		chipsList := make([]int, 0, len(betChips))
+		allInList := make([]int, 0, len(betChips))
+		for pid, chips := range betChips {
+			if chips < 0 {
+				continue
+			}
+			p, err := findPlayerByID(r.players, pid)
+			if err != nil {
+				// TODO(@yshngg): log error, but don't return or panic
+			}
+			if p != nil && p.Status() == player.StatusWaitingToAct {
+				chipsList = append(chipsList, chips)
+			}
+			if p != nil && p.Status() == player.StatusAllIn {
+				allInList = append(allInList, chips)
+			}
+		}
+
+		// correct?
 		if len(chipsList) < 1 {
 			return true
 		}
@@ -572,4 +580,18 @@ func (r *Round) effectivePlayers() []*player.Player {
 		}
 	}
 	return players
+}
+
+func (r *Round) Showdown(show bool) map[string][2]*card.Card {
+	holeCards := make(map[string][2]*card.Card, 0)
+	for _, p := range r.players {
+		if p.Status() == player.StatusFolded {
+			continue
+		}
+		holeCards[p.ID().String()] = p.HoleCards()
+	}
+	if len(holeCards) == 1 && !show {
+		return nil
+	}
+	return holeCards
 }

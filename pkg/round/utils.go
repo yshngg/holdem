@@ -1,14 +1,18 @@
 package round
 
-import "github.com/yshngg/holdem/pkg/player"
+import (
+	"fmt"
 
-func findPlayerByID(players []*player.Player, id string) *player.Player {
+	"github.com/yshngg/holdem/pkg/player"
+)
+
+func findPlayerByID(players []*player.Player, id string) (*player.Player, error) {
 	for _, p := range players {
 		if p != nil && p.ID().String() == id {
-			return p
+			return p, nil
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("not fount who's id is %s", id)
 }
 
 func positionBlind(players []*player.Player, button int) (int, int, error) {
