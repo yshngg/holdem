@@ -101,16 +101,6 @@ func realPlayerCount(players []*player.Player) int {
 	return count
 }
 
-func realPlayers(players []*player.Player) []*player.Player {
-	ps := make([]*player.Player, 0)
-	for _, p := range players {
-		if p != nil {
-			ps = append(ps, p)
-		}
-	}
-	return ps
-}
-
 func effectivePlayerCount(players []*player.Player) int {
 	count := 0
 	for _, p := range players {
@@ -119,15 +109,4 @@ func effectivePlayerCount(players []*player.Player) int {
 		}
 	}
 	return count
-}
-
-func effectivePlayers(players []*player.Player) []*player.Player {
-	ps := make([]*player.Player, 0)
-	effectiveStatus := player.StatusWaitingToAct | player.StatusTakingAction | player.StatusAllIn
-	for _, p := range players {
-		if p != nil && p.Status() != player.StatusFolded {
-			ps = append(ps, p)
-		}
-	}
-	return ps
 }

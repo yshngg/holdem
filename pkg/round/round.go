@@ -16,8 +16,8 @@ const (
 	defaultMinBet = 2
 	defaultButton = 0
 
-	minPlayerCount = 2
-	maxPlayerCount = 22
+	MinPlayerCount = 2
+	MaxPlayerCount = 22
 )
 
 type playerCount struct {
@@ -97,11 +97,11 @@ func New(players []*player.Player, opts ...Option) *Round {
 		}
 		r.recorder = watch.NewRecorder(watcher)
 	}
-	if r.playerCount.max > maxPlayerCount {
-		r.playerCount.max = maxPlayerCount
+	if r.playerCount.max > MaxPlayerCount {
+		r.playerCount.max = MaxPlayerCount
 	}
-	if r.playerCount.max < minPlayerCount {
-		r.playerCount.min = minPlayerCount
+	if r.playerCount.max < MinPlayerCount {
+		r.playerCount.min = MinPlayerCount
 	}
 	return r
 }
