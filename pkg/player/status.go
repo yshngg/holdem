@@ -9,6 +9,7 @@ const (
 	StatusFolded                         // have folded, abandon any claim to the pot
 	StatusAllIn                          // have bet all chips and special rule comes into play
 	StatusSpectating                     // spectating the game (for future expansion)
+	StatusLeft                           // player has left the round
 )
 
 func (s StatusType) String() string {

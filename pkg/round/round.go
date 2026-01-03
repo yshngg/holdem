@@ -126,6 +126,12 @@ func WithRecorder(recorder watch.Recorder) Option {
 	}
 }
 
+func WithPlayers(players ...*player.Player) Option {
+	return func(r *Round) {
+		r.players = players
+	}
+}
+
 func existsPlayer(players []*player.Player, player *player.Player) bool {
 	for _, p := range players {
 		if p.ID() == player.ID() {
@@ -135,34 +141,58 @@ func existsPlayer(players []*player.Player, player *player.Player) bool {
 	return false
 }
 
-func (r *Round) AddPlayer(player *player.Player) error {
-	if r.status.After(StatusReady) {
-		return errors.New("round has started")
+type ErrMaxPlayerCountReached struct{}
+
+func (e ErrMaxPlayerCountReached) Error() string {
+	return "max player count reached"
+}
+
+type ErrPlayerAlreadyExists struct{}
+
+func (e ErrPlayerAlreadyExists) Error() string {
+	return "player already exists"
+}
+
+func (r *Round) AddPlayer(p *player.Player) error {
+	if realPlayerCount(r.players) >= MaxPlayerCount {
+		return ErrMaxPlayerCountReached{}
 	}
-	if existsPlayer(r.players, player) {
-		return errors.New("player already exists")
+	if existsPlayer(r.players, p) {
+		return ErrPlayerAlreadyExists{}
 	}
-	for _, p := range r.players {
-		if p == nil {
-			p = player
+	if r.status.After(StatusStarted) && p.Status() != player.StatusSpectating {
+		return errors.New("round has started, player can only spectate")
+	}
+	for _, pp := range r.players {
+		if pp == nil {
+			pp = p
 			return nil
 		}
 	}
-	r.players = append(r.players, player)
+	r.players = append(r.players, p)
 	return nil
 }
 
-func (r *Round) RemovePlayer(player *player.Player) error {
-	if r.status.After(StatusReady) {
+type ErrPlayerNotFound struct{}
+
+func (e ErrPlayerNotFound) Error() string {
+	return "player not found"
+}
+
+func (r *Round) RemovePlayer(ctx context.Context, p *player.Player) error {
+	if r.status.After(StatusReady) && p.Status() != player.StatusSpectating {
 		return errors.New("round has started")
 	}
-	for _, p := range r.players {
-		if p.ID() == player.ID() {
-			p = nil
+
+	for _, pp := range r.players {
+		if pp.ID() == p.ID() {
+			pp.Leave(ctx)
+			pp = nil
 			return nil
 		}
 	}
-	return errors.New("player does not exist")
+
+	return ErrPlayerNotFound{}
 }
 
 func (r *Round) prepare(ctx context.Context) error {
@@ -439,7 +469,7 @@ func (r *Round) Start(ctx context.Context) error {
 	}
 
 	// ready to start the round
-	r.status = StatusStart
+	r.status = StatusStarted
 
 	// prepare players
 	err := r.prepare(ctx)
@@ -572,16 +602,6 @@ func (r *Round) End() error {
 	return nil
 }
 
-func (r *Round) effectivePlayers() []*player.Player {
-	players := make([]*player.Player, 0)
-	for _, p := range r.players {
-		if p != nil {
-			players = append(players, p)
-		}
-	}
-	return players
-}
-
 func (r *Round) Showdown(show bool) map[string][2]*card.Card {
 	holeCards := make(map[string][2]*card.Card, 0)
 	for _, p := range r.players {
@@ -594,4 +614,14 @@ func (r *Round) Showdown(show bool) map[string][2]*card.Card {
 		return nil
 	}
 	return holeCards
+}
+
+func (r *Round) RealPlayers() []*player.Player {
+	players := make([]*player.Player, 0)
+	for _, p := range r.players {
+		if p != nil {
+			players = append(players, p)
+		}
+	}
+	return players
 }

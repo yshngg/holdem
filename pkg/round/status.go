@@ -5,7 +5,7 @@ type StatusType int
 const (
 	StatusInvalid StatusType = iota
 	StatusReady
-	StatusStart
+	StatusStarted
 	StatusPreFlop
 	StatusFlop
 	StatusTurn
@@ -16,8 +16,8 @@ const (
 
 func (s StatusType) String() string {
 	switch s {
-	case StatusStart:
-		return "Start"
+	case StatusStarted:
+		return "Started"
 	case StatusPreFlop:
 		return "PreFlop"
 	case StatusFlop:
@@ -45,7 +45,7 @@ func (s StatusType) Before(other StatusType) bool {
 
 func (s StatusType) Next() StatusType {
 	switch s {
-	case StatusStart:
+	case StatusStarted:
 		return StatusPreFlop
 	case StatusPreFlop:
 		return StatusFlop
@@ -73,7 +73,7 @@ func (s StatusType) Previous() StatusType {
 	case StatusFlop:
 		return StatusPreFlop
 	case StatusPreFlop:
-		return StatusStart
+		return StatusStarted
 	default:
 		return StatusInvalid
 	}

@@ -138,6 +138,31 @@ func (p *Player) AllIn(ctx context.Context) error {
 	return p.takeAction(ctx, Action{Type: ActionAllIn})
 }
 
+func (p *Player) Leave(ctx context.Context) error {
+	defer func() {
+		p.status = StatusLeft
+		if p.watcher != nil {
+			p.watcher.Stop()
+		}
+		p.done.Do(func() {
+			close(p.active)
+			close(p.actionChan)
+		})
+	}()
+	if p.Status() == StatusWaitingToAct {
+		select {
+		case <-p.Active():
+			err := p.Fold(ctx)
+			if err != nil {
+				return fmt.Errorf("player %s (id: %s) fold, err: %w", p.Name(), p.ID(), err)
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+	return nil
+}
+
 func (p *Player) Name() string {
 	return p.name
 }
@@ -255,14 +280,4 @@ Drain:
 	// action concluded
 	p.status = action.Type.ToStatus()
 	return action
-}
-
-func (p *Player) Done() {
-	if p.watcher != nil {
-		p.watcher.Stop()
-	}
-	p.done.Do(func() {
-		close(p.active)
-		close(p.actionChan)
-	})
 }
