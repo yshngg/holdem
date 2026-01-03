@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sync"
 
 	"github.com/yshngg/holdem/pkg/player"
 	"github.com/yshngg/holdem/pkg/round"
@@ -12,8 +13,9 @@ import (
 const defaultMinBet = 2
 
 type Table struct {
-	// event chan Event
-	round *round.Round
+	sync.Once
+	eventChan chan Event
+	round     *round.Round
 
 	waiting []*player.Player
 	// auxiliary used to quick determine whether the player on table or not.
@@ -92,9 +94,14 @@ func (t *Table) Players() []*player.Player {
 }
 
 func (t *Table) Start(ctx context.Context) error {
-	go func() {
+	go func(ctx context.Context, eventChan chan Event) {
+		select {
+		case event := <-eventChan:
 
-	}()
+		case <-ctx.Done():
+			return
+		}
+	}(ctx, t.eventChan)
 
 	for {
 		round := round.New(t.Players())
@@ -113,6 +120,10 @@ func (t *Table) Start(ctx context.Context) error {
 	return nil
 }
 
-func (t *Table) Destroy() error {
-	return nil
+func (t *Table) Destroy() {
+	t.Once.Do(
+		func() {
+			close(t.eventChan)
+		},
+	)
 }
