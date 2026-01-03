@@ -22,10 +22,9 @@ const (
 type Table struct {
 	round *round.Round
 
+	waiting []*player.Player
 	// capacity is cap of waiting slice
 	capacity int
-
-	waiting []*player.Player
 	// waitingMap used to quick determine whether the player on table or not.
 	waitingMap map[string]struct{}
 
