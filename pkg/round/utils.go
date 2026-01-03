@@ -123,6 +123,7 @@ func effectivePlayerCount(players []*player.Player) int {
 
 func effectivePlayers(players []*player.Player) []*player.Player {
 	ps := make([]*player.Player, 0)
+	effectiveStatus := player.StatusWaitingToAct | player.StatusTakingAction | player.StatusAllIn
 	for _, p := range players {
 		if p != nil && p.Status() != player.StatusFolded {
 			ps = append(ps, p)

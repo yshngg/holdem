@@ -619,7 +619,7 @@ func (r *Round) Showdown(show bool) map[string][2]*card.Card {
 func (r *Round) RealPlayers() []*player.Player {
 	players := make([]*player.Player, 0)
 	for _, p := range r.players {
-		if p != nil {
+		if p != nil || p.Status() != player.StatusLeft {
 			players = append(players, p)
 		}
 	}
