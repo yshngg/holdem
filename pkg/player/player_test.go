@@ -26,7 +26,7 @@ func TestWatch(t *testing.T) {
 	g := new(errgroup.Group)
 	g.Go(func() error {
 		// player.watcher.Stop()
-		defer player.Done()
+		defer player.Leave(t.Context())
 		for _, event := range events {
 			err := broadcaster.Action(event.Type, event.Type)
 			if err != nil {
