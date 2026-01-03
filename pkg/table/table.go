@@ -11,21 +11,31 @@ import (
 	"github.com/yshngg/holdem/pkg/round"
 )
 
-const defaultMinBet = 2
+const (
+	defaultMinBet   = 2
+	defaultCapacity = 8
+
+	defaultMinPlayerCountInRound = 2
+	defaultMaxPlayerCountInRound = 22
+)
 
 type Table struct {
 	round *round.Round
+
+	// capacity is cap of waiting slice
+	capacity int
 
 	waiting []*player.Player
 	// waitingMap used to quick determine whether the player on table or not.
 	waitingMap map[string]struct{}
 
 	minBet int
+
+	minPlayerCountInRound, maxPlayerCountInRound int
 }
 
 func New(opts ...Option) *Table {
 	t := &Table{
-		waiting:    make([]*player.Player, 0),
 		waitingMap: make(map[string]struct{}),
 	}
 	for _, opt := range opts {
@@ -33,6 +43,16 @@ func New(opts ...Option) *Table {
 	}
 	if t.minBet == 0 {
 		t.minBet = defaultMinBet
+	}
+	if t.capacity < 0 {
+		t.capacity = defaultCapacity
+	}
+	t.waiting = make([]*player.Player, 0, t.capacity)
+	if t.maxPlayerCountInRound > defaultMaxPlayerCountInRound {
+		t.maxPlayerCountInRound = defaultMaxPlayerCountInRound
+	}
+	if t.minPlayerCountInRound > defaultMinPlayerCountInRound {
+		t.minPlayerCountInRound = defaultMinPlayerCountInRound
 	}
 	return t
 }
@@ -42,6 +62,24 @@ type Option func(t *Table)
 func WithMinBet(minBet int) Option {
 	return func(t *Table) {
 		t.minBet = minBet
+	}
+}
+
+func WithWaitingCapacity(capacity int) Option {
+	return func(t *Table) {
+		t.capacity = capacity
+	}
+}
+
+func WithMaxPlayerCountInRound(count int) Option {
+	return func(t *Table) {
+		t.maxPlayerCountInRound = count
+	}
+}
+
+func WithMinPlayerCountInRound(count int) Option {
+	return func(t *Table) {
+		t.minPlayerCountInRound = count
 	}
 }
 
@@ -98,7 +136,7 @@ func (t *Table) Start(ctx context.Context) error {
 	players := make([]*player.Player, 0, len(t.waiting))
 	button := 0
 	for {
-		for len(players) < round.MaxPlayerCount {
+		for len(players) < t.maxPlayerCountInRound {
 			if len(t.waiting) < 1 {
 				return fmt.Errorf("not enough players")
 			}
@@ -110,10 +148,14 @@ func (t *Table) Start(ctx context.Context) error {
 			}
 			t.waiting = t.waiting[1:]
 		}
+		if len(players) < t.minPlayerCountInRound {
+			return fmt.Errorf("not enough players, round cannot start")
+		}
 		t.round = round.New(
 			players,
 			round.WithMinBet(t.minBet),
 			round.WithButton(button%len(players)),
+			round.WithPlayerCount(t.minPlayerCountInRound, t.maxPlayerCountInRound, len(players)),
 		)
 
 		err := t.round.Start(ctx)

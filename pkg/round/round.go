@@ -16,9 +16,13 @@ const (
 	defaultMinBet = 2
 	defaultButton = 0
 
-	MinPlayerCount = 2
-	MaxPlayerCount = 20
+	minPlayerCount = 2
+	maxPlayerCount = 22
 )
+
+type playerCount struct {
+	max, min, current int
+}
 
 type Round struct {
 	// players is a slice of players indexed by their position at the table.
@@ -57,6 +61,8 @@ type Round struct {
 	// status tracks the current stage of the poker round.
 	// See the Status type for all possible values (pre-flop, flop, turn, river, etc.).
 	status StatusType
+
+	playerCount playerCount
 }
 
 func New(players []*player.Player, opts ...Option) *Round {
@@ -90,6 +96,12 @@ func New(players []*player.Player, opts ...Option) *Round {
 			panic(err)
 		}
 		r.recorder = watch.NewRecorder(watcher)
+	}
+	if r.playerCount.max > maxPlayerCount {
+		r.playerCount.max = maxPlayerCount
+	}
+	if r.playerCount.max < minPlayerCount {
+		r.playerCount.min = minPlayerCount
 	}
 	return r
 }
@@ -132,6 +144,16 @@ func WithPlayers(players ...*player.Player) Option {
 	}
 }
 
+func WithPlayerCount(min, max, current int) Option {
+	return func(r *Round) {
+		r.playerCount = playerCount{
+			max:     max,
+			min:     min,
+			current: current,
+		}
+	}
+}
+
 func existsPlayer(players []*player.Player, player *player.Player) bool {
 	for _, p := range players {
 		if p.ID() == player.ID() {
@@ -154,7 +176,7 @@ func (e ErrPlayerAlreadyExists) Error() string {
 }
 
 func (r *Round) AddPlayer(p *player.Player) error {
-	if realPlayerCount(r.players) >= MaxPlayerCount {
+	if realPlayerCount(r.players) >= r.playerCount.max {
 		return ErrMaxPlayerCountReached{}
 	}
 	if existsPlayer(r.players, p) {
@@ -464,7 +486,7 @@ func (r *Round) Start(ctx context.Context) error {
 	}
 	realPlayerCount := realPlayerCount(r.players)
 	effectivePlayerCount := effectivePlayerCount(r.players)
-	if effectivePlayerCount < MinPlayerCount || effectivePlayerCount > MaxPlayerCount {
+	if effectivePlayerCount < r.playerCount.min || effectivePlayerCount > r.playerCount.max {
 		return fmt.Errorf("invalid player count: %d", effectivePlayerCount)
 	}
 
