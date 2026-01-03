@@ -17,7 +17,7 @@ const (
 	defaultButton = 0
 
 	MinPlayerCount = 2
-	MaxPlayerCount = 10
+	MaxPlayerCount = 20
 )
 
 type Round struct {
