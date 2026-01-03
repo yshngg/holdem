@@ -106,6 +106,9 @@ func (t *Table) Join(p *player.Player) error {
 	if exists {
 		return fmt.Errorf("player %s (id: %s) have sat at the table", p.Name(), p.ID())
 	}
+	if len(t.waiting) >= t.capacity {
+		return fmt.Errorf("have reached the capacity of waiting")
+	}
 	t.waiting = append(t.waiting, p)
 	t.waitingMap[p.ID().String()] = struct{}{}
 	return nil
