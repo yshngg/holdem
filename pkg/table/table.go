@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	defaultMinBet   = 2
-	defaultCapacity = 8
+	defaultMinBet      = 2
+	defaultCapacity    = 8
+	defaultQueueLength = defaultCapacity * 2
 
 	defaultMinPlayerCountInRound = 2
 	defaultMaxPlayerCountInRound = 22
@@ -94,7 +95,7 @@ func WithPlayers(players []*player.Player) Option {
 func (t *Table) Join(p *player.Player) error {
 	if t.round != nil {
 		err := t.round.AddPlayer(p)
-		if err != nil && !errors.Is(err, round.ErrMaxPlayerCountReached{}) {
+		if err != nil && !errors.Is(err, round.ErrRoundAlreadyStarted{}) {
 			return fmt.Errorf("join table, err: %v", err)
 		}
 	}
@@ -138,17 +139,21 @@ func (t *Table) Start(ctx context.Context) error {
 	players := make([]*player.Player, 0, len(t.waiting))
 	button := 0
 	for {
-		for len(players) < t.maxPlayerCountInRound {
-			if len(t.waiting) < 1 {
-				return fmt.Errorf("not enough players")
-			}
-			p := t.waiting[0]
-			players = append(players, p)
-			if len(t.waiting) < 2 {
-				t.waiting = make([]*player.Player, 0)
+		for i := range len(t.waiting) {
+			if len(players) >= t.maxPlayerCountInRound {
 				break
 			}
-			t.waiting = t.waiting[1:]
+
+			wp := t.waiting[i]
+			if wp == nil || wp.Status() != player.StatusReady {
+				// TODO(@yshngg): only log
+				// return fmt.Errorf("player %s (id: %s) is not ready", wp.Name(), wp.ID())
+				continue
+			}
+			players = append(players, wp)
+			t.waiting = slices.DeleteFunc(t.waiting, func(pp *player.Player) bool {
+				return pp.ID() == wp.ID()
+			})
 		}
 		if len(players) < t.minPlayerCountInRound {
 			return fmt.Errorf("not enough players, round cannot start")

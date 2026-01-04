@@ -149,24 +149,11 @@ func (p *Player) Ready() {
 }
 
 func (p *Player) Leave(ctx context.Context) error {
-	defer func() {
-		p.status = StatusIdle
-		p.once.Do(func() {
-			close(p.active)
-			close(p.actionChan)
-		})
-	}()
-	if p.Status() == StatusWaitingToAct {
-		select {
-		case <-p.Active():
-			err := p.Fold(ctx)
-			if err != nil {
-				return fmt.Errorf("player %s (id: %s) fold, err: %w", p.Name(), p.ID(), err)
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
+	p.status = StatusIdle
+	p.once.Do(func() {
+		close(p.active)
+		close(p.actionChan)
+	})
 	return nil
 }
 

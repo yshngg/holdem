@@ -2,7 +2,6 @@ package round
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 
@@ -183,15 +182,21 @@ func (r Round) ExistsPlayer(id string) bool {
 	})
 }
 
+type ErrRoundAlreadyStarted struct{}
+
+func (e ErrRoundAlreadyStarted) Error() string {
+	return "round has already started"
+}
+
 func (r *Round) AddPlayer(p *player.Player) error {
-	if r.CountPlayer() >= r.playerCount.max {
-		return ErrMaxPlayerCountReached{}
-	}
 	if r.ExistsPlayer(p.ID()) {
 		return ErrPlayerAlreadyExists{}
 	}
 	if r.status.After(StatusStarted) {
-		return errors.New("round has started")
+		return ErrRoundAlreadyStarted{}
+	}
+	if r.CountPlayer() >= r.playerCount.max {
+		return ErrMaxPlayerCountReached{}
 	}
 	for i, pp := range r.players {
 		if pp == nil {
@@ -220,29 +225,37 @@ func (e ErrPlayerNotFound) Error() string {
 	return fmt.Sprintf("player (id: %s) not found", e.id)
 }
 
+func (r *Round) Watch() (watch.Interface, error) {
+	return r.broadcaster.Watch()
+}
+
 func (r *Round) RemovePlayer(ctx context.Context, id string) error {
-	// if r.status.After(StatusReady) && p.Status() != player.StatusSpectating {
-	// 	return errors.New("round has started")
-	// }
 	p, err := r.FindPlayer(id)
 	if err != nil {
 		return ErrPlayerNotFound{id}
 	}
 
 	if r.status.Before(StatusStarted) {
-		for i, pp := range r.players {
-			if pp.ID() == id {
-				pp.Leave(ctx)
-				r.players[i] = nil
-				return nil
-			}
-		}
+		r.players = slices.DeleteFunc(r.players, func(pp *player.Player) bool {
+			return pp.ID() == id
+		})
+		return nil
 	}
 
 	p.StopWatch()
-	p.Leave(ctx)
 
-	return ErrPlayerNotFound{}
+	if p.Status() == player.StatusWaitingToAct {
+		select {
+		case <-p.Active():
+			err := p.Fold(ctx)
+			if err != nil {
+				return fmt.Errorf("player %s (id: %s) fold, err: %w", p.Name(), p.ID(), err)
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
 }
 
 func (r *Round) prepare(ctx context.Context) error {
@@ -636,6 +649,10 @@ func (r *Round) Start(ctx context.Context) error {
 
 func (r *Round) End() error {
 	r.status = StatusEnd
+	for _, p := range r.players {
+		p.StopWatch()
+		p.Ready()
+	}
 	return nil
 }
 
