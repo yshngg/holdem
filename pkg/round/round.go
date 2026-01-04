@@ -442,9 +442,13 @@ func (r *Round) Start(ctx context.Context) error {
 
 	// ready to start the round
 	r.status = StatusStarted
+	err := r.openBettingRound(ctx)
+	if err != nil {
+		return fmt.Errorf("open betting round: err: %w", err)
+	}
 
 	// prepare players
-	err := r.prepare(ctx)
+	err = r.prepare(ctx)
 	if err != nil {
 		return fmt.Errorf("start round, err: %w", err)
 	}
@@ -473,36 +477,15 @@ func (r *Round) Start(ctx context.Context) error {
 			return fmt.Errorf("broadcaster action, err: %w", err)
 		}
 	}
+	err = r.openBettingRound(ctx)
+	if err != nil {
+		return fmt.Errorf("open betting round: err: %w", err)
+	}
 
 	// pre-flop betting round
-	preflopBet := r.minBet
-	for i := range len(r.players) {
-		p := r.players[(r.button+i+3)%len(r.players)]
-		if p == nil || p.Status() != player.StatusReady {
-			continue
-		}
-		action, err := p.WaitForAction(ctx, []player.Action{
-			{Type: player.ActionFold, Chips: 0},
-			{Type: player.ActionCall, Chips: preflopBet},
-			{Type: player.ActionRaise, Chips: preflopBet * 2},
-			// {Type: player.ActionAllIn, Chips: 0},
-		})
-		if err != nil {
-			return fmt.Errorf("wait for action, err: %w", err)
-		}
-		switch action.Type {
-		case player.ActionFold:
-		case player.ActionCall:
-		case player.ActionRaise:
-			preflopBet = action.Chips
-		case player.ActionAllIn:
-			// TODO(@yshngg): Handle all-in action
-		default:
-			return fmt.Errorf("invalid action type")
-		}
-		if err = r.broadcaster.Action(action.Type.IntoEventType(), player.EventObject{Player: p, Bet: action.Chips}); err != nil {
-			return fmt.Errorf("broadcaster action, err: %w", err)
-		}
+	err = r.openBettingRound(ctx)
+	if err != nil {
+		return fmt.Errorf("open betting round: err: %w", err)
 	}
 
 	// flop
@@ -519,28 +502,27 @@ func (r *Round) Start(ctx context.Context) error {
 		r.broadcaster.Action(dealer.EventFlopCards, dealer.EventObject{FlopCards: flopCards})
 	}
 
+	// flop betting round
+	err = r.openBettingRound(ctx)
+	if err != nil {
+		return fmt.Errorf("open betting round: err: %w", err)
+	}
+
 	// turn
 	r.status = StatusTurn
 	r.dealer.BurnCard()
 	turnCard := r.dealer.DealTurnCard()
 	r.communityCards = append(r.communityCards, turnCard)
 	for _, p := range r.players {
-		if p == nil || p.Status() == player.StatusFolded {
+		if p == nil {
 			continue
 		}
 		r.broadcaster.Action(dealer.EventTurnCard, dealer.EventObject{TurnCard: turnCard})
-		action, err := p.WaitForAction(ctx, []player.Action{
-			{Type: player.ActionFold, Chips: 0},
-			{Type: player.ActionCall, Chips: preflopBet},
-			{Type: player.ActionRaise, Chips: preflopBet * 2},
-			// {Type: player.ActionAllIn, Chips: 0},
-		})
-		if err != nil {
-			return fmt.Errorf("wait for action, err: %w", err)
-		}
-		if err = r.broadcaster.Action(action.Type.IntoEventType(), player.EventObject{Player: p, Bet: action.Chips}); err != nil {
-			return fmt.Errorf("broadcaster action, err: %w", err)
-		}
+	}
+	// turn betting round
+	err = r.openBettingRound(ctx)
+	if err != nil {
+		return fmt.Errorf("open betting round: err: %w", err)
 	}
 
 	// river
@@ -549,27 +531,18 @@ func (r *Round) Start(ctx context.Context) error {
 	riverCard := r.dealer.DealTurnCard()
 	r.communityCards = append(r.communityCards, riverCard)
 	for _, p := range r.players {
-		if p == nil || p.Status() == player.StatusFolded {
+		if p == nil {
 			continue
 		}
 		if err = r.broadcaster.Action(dealer.EventRiverCard, dealer.EventObject{RiverCard: riverCard}); err != nil {
 			return fmt.Errorf("broadcaster action, err: %w", err)
 		}
-		if p.Status() == player.StatusAllIn {
-			continue
-		}
-		action, err := p.WaitForAction(ctx, []player.Action{
-			{Type: player.ActionFold, Chips: 0},
-			{Type: player.ActionCall, Chips: preflopBet},
-			{Type: player.ActionRaise, Chips: preflopBet * 2},
-			// {Type: player.ActionAllIn, Chips: 0},
-		})
-		if err != nil {
-			return fmt.Errorf("wait for action, err: %w", err)
-		}
-		if err = r.broadcaster.Action(action.Type.IntoEventType(), player.EventObject{Player: p, Bet: action.Chips}); err != nil {
-			return fmt.Errorf("broadcaster action, err: %w", err)
-		}
+	}
+
+	// turn betting round
+	err = r.openBettingRound(ctx)
+	if err != nil {
+		return fmt.Errorf("open betting round: err: %w", err)
 	}
 
 	// showdown
