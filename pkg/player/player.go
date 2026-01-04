@@ -148,6 +148,12 @@ func (p *Player) Ready() {
 	p.status = StatusReady
 }
 
+func (p *Player) CancelReady() {
+	p.status = StatusIdle
+	p.active = nil
+	p.actionChan = nil
+}
+
 func (p *Player) Leave(ctx context.Context) error {
 	p.status = StatusIdle
 	p.once.Do(func() {

@@ -169,7 +169,7 @@ func (e ErrPlayerAlreadyExists) Error() string {
 func (r Round) CountPlayer() int {
 	count := 0
 	for _, p := range r.players {
-		if p != nil || p.Status() != player.StatusIdle {
+		if p != nil && p.Status() != player.StatusIdle {
 			count++
 		}
 	}
@@ -678,4 +678,88 @@ func (r *Round) Players() []*player.Player {
 		}
 	}
 	return players
+}
+
+type ErrFirstToActPlayerNotFound struct {
+	button int
+}
+
+func (e ErrFirstToActPlayerNotFound) Error() string {
+	return fmt.Sprintf("no first player found at button %d", e.button)
+}
+
+type ErrStatusNotSupported struct {
+	status StatusType
+}
+
+func (e ErrStatusNotSupported) Error() string {
+	return fmt.Sprintf("status not supported: %s", e.status)
+}
+
+func (r Round) positionBlind() (int, int, error) {
+	playerCount := r.playerCount.current
+	length := len(r.players)
+	if r.button < 0 || length <= r.button || r.players[r.button] == nil {
+		return -1, -1, ErrInvalidButton{button: r.button}
+	}
+	if playerCount < 2 {
+		return -1, -1, ErrInvalidPlayerCount{count: playerCount}
+	}
+	if playerCount == 2 {
+		small := r.button
+		big := (small + 1) % length
+		for r.players[big] == nil {
+			big = (big + 1) % length
+		}
+		return small, big, nil
+	}
+
+	small := (r.button + 1) % length
+	big := (small + 1) % length
+	for range length {
+		if r.players[small] == nil {
+			small = (small + 1) % length
+			big = (small + 1) % length
+			continue
+		}
+		if r.players[big] != nil {
+			break
+		}
+		big = (big + 1) % length
+	}
+	return small, big, nil
+}
+
+func (r *Round) positionFirstToAct() (int, error) {
+	playerCount := r.playerCount.current
+	if playerCount < 2 {
+		return -1, ErrInvalidPlayerCount{count: playerCount}
+	}
+
+	small, big, err := r.positionBlind()
+	if err != nil {
+		return -1, fmt.Errorf("position blind, err: %w", err)
+	}
+
+	switch r.status {
+	case StatusPreFlop:
+		if playerCount == 2 {
+			return small, nil
+		}
+		length := len(r.players)
+		for i := range length - 2 {
+			p := r.players[(big+i+1)%length]
+			if p != nil {
+				return i, nil
+			}
+		}
+		return -1, ErrFirstToActPlayerNotFound{r.button}
+	case StatusFlop, StatusTurn, StatusRiver:
+		if playerCount == 2 {
+			return big, nil
+		}
+		return small, nil
+	default:
+		return -1, ErrStatusNotSupported{status: r.status}
+	}
 }
