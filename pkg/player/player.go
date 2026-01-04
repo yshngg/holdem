@@ -34,6 +34,7 @@ type Player struct {
 	chips         int
 	watcher       watch.Interface
 	status        StatusType
+	left          bool
 
 	// for action handling
 	once             sync.Once
@@ -73,12 +74,12 @@ func WithChips(chips int) Option {
 	}
 }
 
+// WithStatus only used for testing
 func WithStatus(status StatusType) Option {
 	return func(p *Player) {
 		p.status = status
 	}
 }
-
 func WithActionTimeout(timeout time.Duration) Option {
 	return func(p *Player) {
 		p.actionTimeout = timeout
@@ -142,24 +143,36 @@ func (p *Player) AllIn(ctx context.Context) error {
 	return p.takeAction(ctx, Action{Type: ActionAllIn})
 }
 
-func (p *Player) Ready() {
+func (p *Player) Ready() error {
+	if p.status != StatusIdle {
+		return fmt.Errorf("player is not idle, cannot ready")
+	}
 	p.active = make(chan bool, 1)
 	p.actionChan = make(chan Action)
 	p.status = StatusReady
+	return nil
 }
 
-func (p *Player) CancelReady() {
+func (p *Player) CancelReady() error {
+	if p.status != StatusReady {
+		return fmt.Errorf("player is not ready, cannot cancel")
+	}
 	p.status = StatusIdle
 	p.active = nil
 	p.actionChan = nil
+	return nil
 }
 
 func (p *Player) Leave(ctx context.Context) error {
-	p.status = StatusIdle
 	p.once.Do(func() {
-		close(p.active)
-		close(p.actionChan)
+		if p.active != nil {
+			close(p.active)
+		}
+		if p.actionChan != nil {
+			close(p.actionChan)
+		}
 	})
+	p.left = true
 	return nil
 }
 
@@ -236,10 +249,13 @@ func (p *Player) takeAction(ctx context.Context, action Action) error {
 	}
 }
 
-func (p *Player) WaitForAction(ctx context.Context, actions []Action) Action {
+func (p *Player) WaitForAction(ctx context.Context, actions []Action) (*Action, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, p.actionTimeout, fmt.Errorf("action timeout"))
 	defer cancel()
 
+	if p.status != StatusWaitingToAct {
+		return nil, fmt.Errorf("player not wait to act")
+	}
 	p.status = StatusTakingAction
 
 	availableActions := make(map[ActionType]Action)
@@ -278,6 +294,9 @@ Drain:
 	}
 
 	// action concluded
+	if p.status != StatusTakingAction {
+		return nil, fmt.Errorf("player is not take action")
+	}
 	p.status = action.Type.ToStatus()
-	return action
+	return &action, nil
 }

@@ -53,13 +53,16 @@ func TestAction(t *testing.T) {
 		err := player.Check(t.Context())
 		return err
 	})
-	action := player.WaitForAction(t.Context(), []Action{
+	action, err := player.WaitForAction(t.Context(), []Action{
 		{ActionCheck, 0},
 		{ActionBet, 2},
 	})
+	if err != nil {
+		t.Fatalf("player wait for action, err: %v", err)
+	}
 
 	if err := g.Wait(); err != nil {
-		t.Fatalf("player check action error: %v", err)
+		t.Fatalf("player check action, err: %v", err)
 	}
 	if action.Type != ActionCheck {
 		t.Fatalf("action type: %v, want: %v", action.Type, ActionCheck)

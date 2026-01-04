@@ -437,7 +437,10 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 			},
 		}
 	}
-	action := p.WaitForAction(ctx, availableActions)
+	action, err := p.WaitForAction(ctx, availableActions)
+	if err != nil {
+		return fmt.Errorf("wait for action, err: %w", err)
+	}
 	r.pots.AddChips(p.ID(), action.Chips)
 
 	if action.Type == player.ActionRaise || action.Type == player.ActionAllIn {
@@ -490,7 +493,10 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 					},
 				}
 			}
-			action := p.WaitForAction(ctx, availableActions)
+			action, err := p.WaitForAction(ctx, availableActions)
+			if err != nil {
+				return fmt.Errorf("wait for action, err: %w", err)
+			}
 			r.pots.AddChips(p.ID(), action.Chips)
 
 			if action.Type == player.ActionRaise || action.Type == player.ActionAllIn {
@@ -559,12 +565,15 @@ func (r *Round) Start(ctx context.Context) error {
 		if p == nil || p.Status() != player.StatusReady {
 			continue
 		}
-		action := p.WaitForAction(ctx, []player.Action{
+		action, err := p.WaitForAction(ctx, []player.Action{
 			{Type: player.ActionFold, Chips: 0},
 			{Type: player.ActionCall, Chips: preflopBet},
 			{Type: player.ActionRaise, Chips: preflopBet * 2},
 			// {Type: player.ActionAllIn, Chips: 0},
 		})
+		if err != nil {
+			return fmt.Errorf("wait for action, err: %w", err)
+		}
 		switch action.Type {
 		case player.ActionFold:
 		case player.ActionCall:
@@ -604,12 +613,15 @@ func (r *Round) Start(ctx context.Context) error {
 			continue
 		}
 		r.broadcaster.Action(dealer.EventTurnCard, dealer.EventObject{TurnCard: turnCard})
-		action := p.WaitForAction(ctx, []player.Action{
+		action, err := p.WaitForAction(ctx, []player.Action{
 			{Type: player.ActionFold, Chips: 0},
 			{Type: player.ActionCall, Chips: preflopBet},
 			{Type: player.ActionRaise, Chips: preflopBet * 2},
 			// {Type: player.ActionAllIn, Chips: 0},
 		})
+		if err != nil {
+			return fmt.Errorf("wait for action, err: %w", err)
+		}
 		if err = r.broadcaster.Action(action.Type.IntoEventType(), player.EventObject{Player: p, Bet: action.Chips}); err != nil {
 			return fmt.Errorf("broadcaster action, err: %w", err)
 		}
@@ -630,12 +642,15 @@ func (r *Round) Start(ctx context.Context) error {
 		if p.Status() == player.StatusAllIn {
 			continue
 		}
-		action := p.WaitForAction(ctx, []player.Action{
+		action, err := p.WaitForAction(ctx, []player.Action{
 			{Type: player.ActionFold, Chips: 0},
 			{Type: player.ActionCall, Chips: preflopBet},
 			{Type: player.ActionRaise, Chips: preflopBet * 2},
 			// {Type: player.ActionAllIn, Chips: 0},
 		})
+		if err != nil {
+			return fmt.Errorf("wait for action, err: %w", err)
+		}
 		if err = r.broadcaster.Action(action.Type.IntoEventType(), player.EventObject{Player: p, Bet: action.Chips}); err != nil {
 			return fmt.Errorf("broadcaster action, err: %w", err)
 		}
