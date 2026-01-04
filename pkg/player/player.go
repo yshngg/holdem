@@ -36,7 +36,7 @@ type Player struct {
 	status        StatusType
 
 	// for action handling
-	done             sync.Once
+	once             sync.Once
 	active           chan bool
 	actionChan       chan Action
 	availableActions map[ActionType]Action
@@ -47,9 +47,7 @@ func New(opts ...Option) *Player {
 	p := &Player{
 		id:            id,
 		actionTimeout: defaultActionTimeout,
-		status:        StatusReady,
-		active:        make(chan bool, 1),
-		actionChan:    make(chan Action),
+		status:        StatusIdle,
 	}
 	p.Apply(opts...)
 	if len(p.name) == 0 {
@@ -90,6 +88,12 @@ func WithActionTimeout(timeout time.Duration) Option {
 func WithWatcher(watcher watch.Interface) Option {
 	return func(p *Player) {
 		p.watcher = watcher
+	}
+}
+
+func (p *Player) StopWatch() {
+	if p.watcher != nil {
+		p.watcher.Stop()
 	}
 }
 
@@ -138,13 +142,16 @@ func (p *Player) AllIn(ctx context.Context) error {
 	return p.takeAction(ctx, Action{Type: ActionAllIn})
 }
 
+func (p *Player) Ready() {
+	p.active = make(chan bool, 1)
+	p.actionChan = make(chan Action)
+	p.status = StatusReady
+}
+
 func (p *Player) Leave(ctx context.Context) error {
 	defer func() {
-		p.status = StatusLeft
-		if p.watcher != nil {
-			p.watcher.Stop()
-		}
-		p.done.Do(func() {
+		p.status = StatusIdle
+		p.once.Do(func() {
 			close(p.active)
 			close(p.actionChan)
 		})
@@ -157,7 +164,7 @@ func (p *Player) Leave(ctx context.Context) error {
 				return fmt.Errorf("player %s (id: %s) fold, err: %w", p.Name(), p.ID(), err)
 			}
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		}
 	}
 	return nil
@@ -167,8 +174,8 @@ func (p *Player) Name() string {
 	return p.name
 }
 
-func (p *Player) ID() uuid.UUID {
-	return p.id
+func (p *Player) ID() string {
+	return p.id.String()
 }
 
 func (p *Player) HoleCards() [2]*card.Card {

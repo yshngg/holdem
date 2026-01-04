@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/yshngg/holdem/pkg/card"
 	"github.com/yshngg/holdem/pkg/dealer"
@@ -154,15 +155,6 @@ func WithPlayerCount(min, max, current int) Option {
 	}
 }
 
-func existsPlayer(players []*player.Player, player *player.Player) bool {
-	for _, p := range players {
-		if p.ID() == player.ID() {
-			return true
-		}
-	}
-	return false
-}
-
 type ErrMaxPlayerCountReached struct{}
 
 func (e ErrMaxPlayerCountReached) Error() string {
@@ -175,19 +167,35 @@ func (e ErrPlayerAlreadyExists) Error() string {
 	return "player already exists"
 }
 
+func (r Round) CountPlayer() int {
+	count := 0
+	for _, p := range r.players {
+		if p != nil || p.Status() != player.StatusIdle {
+			count++
+		}
+	}
+	return count
+}
+
+func (r Round) ExistsPlayer(id string) bool {
+	return slices.ContainsFunc(r.players, func(p *player.Player) bool {
+		return p.ID() == id
+	})
+}
+
 func (r *Round) AddPlayer(p *player.Player) error {
-	if realPlayerCount(r.players) >= r.playerCount.max {
+	if r.CountPlayer() >= r.playerCount.max {
 		return ErrMaxPlayerCountReached{}
 	}
-	if existsPlayer(r.players, p) {
+	if r.ExistsPlayer(p.ID()) {
 		return ErrPlayerAlreadyExists{}
 	}
-	if r.status.After(StatusStarted) && p.Status() != player.StatusSpectating {
-		return errors.New("round has started, player can only spectate")
+	if r.status.After(StatusStarted) {
+		return errors.New("round has started")
 	}
-	for _, pp := range r.players {
+	for i, pp := range r.players {
 		if pp == nil {
-			pp = p
+			r.players[i] = p
 			return nil
 		}
 	}
@@ -195,24 +203,44 @@ func (r *Round) AddPlayer(p *player.Player) error {
 	return nil
 }
 
-type ErrPlayerNotFound struct{}
-
-func (e ErrPlayerNotFound) Error() string {
-	return "player not found"
+type ErrPlayerNotFound struct {
+	id string
 }
 
-func (r *Round) RemovePlayer(ctx context.Context, p *player.Player) error {
-	if r.status.After(StatusReady) && p.Status() != player.StatusSpectating {
-		return errors.New("round has started")
-	}
-
-	for _, pp := range r.players {
-		if pp.ID() == p.ID() {
-			pp.Leave(ctx)
-			pp = nil
-			return nil
+func (r Round) FindPlayer(id string) (*player.Player, error) {
+	for _, p := range r.players {
+		if p.ID() == id {
+			return p, nil
 		}
 	}
+	return nil, ErrPlayerNotFound{id}
+}
+
+func (e ErrPlayerNotFound) Error() string {
+	return fmt.Sprintf("player (id: %s) not found", e.id)
+}
+
+func (r *Round) RemovePlayer(ctx context.Context, id string) error {
+	// if r.status.After(StatusReady) && p.Status() != player.StatusSpectating {
+	// 	return errors.New("round has started")
+	// }
+	p, err := r.FindPlayer(id)
+	if err != nil {
+		return ErrPlayerNotFound{id}
+	}
+
+	if r.status.Before(StatusStarted) {
+		for i, pp := range r.players {
+			if pp.ID() == id {
+				pp.Leave(ctx)
+				r.players[i] = nil
+				return nil
+			}
+		}
+	}
+
+	p.StopWatch()
+	p.Leave(ctx)
 
 	return ErrPlayerNotFound{}
 }
@@ -253,7 +281,7 @@ func (e ErrInvalidButton) Error() string {
 }
 
 func (r *Round) betBlind(ctx context.Context) error {
-	small, big, err := positionBlind(r.players, r.button)
+	small, big, err := r.positionBlind()
 	if err != nil {
 		return fmt.Errorf("blind positions, err: %v", err)
 	}
@@ -265,8 +293,8 @@ func (r *Round) betBlind(ctx context.Context) error {
 		return fmt.Errorf("post big blind: %w", err)
 	}
 
-	r.pots.AddChips(r.players[small].ID().String(), r.minBet/2)
-	r.pots.AddChips(r.players[big].ID().String(), r.minBet)
+	r.pots.AddChips(r.players[small].ID(), r.minBet/2)
+	r.pots.AddChips(r.players[big].ID(), r.minBet)
 
 	if err = r.broadcaster.Action(player.EventPostSmallBlind, player.EventObject{Player: r.players[small], Bet: r.minBet / 2}); err != nil {
 		return fmt.Errorf("broadcaster action, err: %w", err)
@@ -285,26 +313,13 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 	maxBet := 0
 	minRaise := r.minBet
 	betChips := make(map[string]int) // chips that have bet in current betting round
-	start := -1
-	if r.Status() == StatusPreFlop {
-		maxBet = r.minBet
-		start, err = positionUTG(r.players, r.button)
-		if err != nil {
-			return fmt.Errorf("betting round, err: %w", err)
-		}
-	} else {
-		maxBet = 0
-		start, err = positionFirstToAct(r.players, r.button)
-		if err != nil {
-			return fmt.Errorf("betting round, err: %w", err)
-		}
-	}
-	if start < 0 {
-		return fmt.Errorf("can not find first player to act")
+	start, err := r.positionFirstToAct()
+	if err != nil {
+		return fmt.Errorf("position first to act, err: %w", err)
 	}
 
 	keep := func() bool {
-		if effectivePlayerCount(r.players) != len(betChips) {
+		if r.playerCount.current != len(betChips) {
 			return true
 		}
 
@@ -314,7 +329,7 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 			if chips < 0 {
 				continue
 			}
-			p, err := findPlayerByID(r.players, pid)
+			p, err := r.FindPlayer(pid)
 			if err != nil {
 				// TODO(@yshngg): log error, but don't return or panic
 			}
@@ -347,7 +362,7 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 	// 		if p == nil || p.Status() != player.StatusWaitingToAct {
 	// 			continue
 	// 		}
-	// 		bet, acted := playerBetChips[p.ID().String()]
+	// 		bet, acted := playerBetChips[p.ID()]
 	// 		if !acted || bet < 0 {
 	// 			continue
 	// 		}
@@ -362,7 +377,7 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 	// 		if p == nil || p.Status() != player.StatusWaitingToAct {
 	// 			continue
 	// 		}
-	// 		bet, acted := playerBetChips[p.ID().String()]
+	// 		bet, acted := playerBetChips[p.ID()]
 	// 		if bet < 0 {
 	// 			continue
 	// 		}
@@ -378,7 +393,7 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 	if p == nil || p.Status() != player.StatusWaitingToAct {
 		return fmt.Errorf("err: %w", err)
 	}
-	haveBet := betChips[p.ID().String()]
+	haveBet := betChips[p.ID()]
 	availableActions := []player.Action{
 		{
 			Type: player.ActionFold,
@@ -410,7 +425,7 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 		}
 	}
 	action := p.WaitForAction(ctx, availableActions)
-	r.pots.AddChips(p.ID().String(), action.Chips)
+	r.pots.AddChips(p.ID(), action.Chips)
 
 	if action.Type == player.ActionRaise || action.Type == player.ActionAllIn {
 		minRaise = action.Chips - maxBet
@@ -427,7 +442,7 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 			if p == nil || p.Status() != player.StatusWaitingToAct {
 				continue
 			}
-			// bet, acted := playerBetChips[p.ID().String()]
+			// bet, acted := playerBetChips[p.ID()]
 			// if acted && bet < 0 {
 			// 	continue
 			// }
@@ -463,7 +478,7 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 				}
 			}
 			action := p.WaitForAction(ctx, availableActions)
-			r.pots.AddChips(p.ID().String(), action.Chips)
+			r.pots.AddChips(p.ID(), action.Chips)
 
 			if action.Type == player.ActionRaise || action.Type == player.ActionAllIn {
 				minRaise = action.Chips - maxBet
@@ -484,11 +499,11 @@ func (r *Round) Start(ctx context.Context) error {
 	if r.players[r.button] == nil {
 		return fmt.Errorf("button position does not have player")
 	}
-	realPlayerCount := realPlayerCount(r.players)
-	effectivePlayerCount := effectivePlayerCount(r.players)
-	if effectivePlayerCount < r.playerCount.min || effectivePlayerCount > r.playerCount.max {
-		return fmt.Errorf("invalid player count: %d", effectivePlayerCount)
+	playerCount := r.CountPlayer()
+	if playerCount < r.playerCount.min || playerCount > r.playerCount.max {
+		return fmt.Errorf("invalid player count: %d", playerCount)
 	}
+	r.playerCount.current = playerCount
 
 	// ready to start the round
 	r.status = StatusStarted
@@ -512,7 +527,7 @@ func (r *Round) Start(ctx context.Context) error {
 
 	// pre-flop
 	r.status = StatusPreFlop
-	holeCards := r.dealer.DealHoleCards(realPlayerCount)
+	holeCards := r.dealer.DealHoleCards(playerCount)
 	for i := range len(r.players) {
 		p := r.players[(r.button+i+1)%len(r.players)]
 		if p == nil || p.Status() != player.StatusReady {
@@ -630,7 +645,7 @@ func (r *Round) Showdown(show bool) map[string][2]*card.Card {
 		if p.Status() == player.StatusFolded {
 			continue
 		}
-		holeCards[p.ID().String()] = p.HoleCards()
+		holeCards[p.ID()] = p.HoleCards()
 	}
 	if len(holeCards) == 1 && !show {
 		return nil
@@ -638,10 +653,10 @@ func (r *Round) Showdown(show bool) map[string][2]*card.Card {
 	return holeCards
 }
 
-func (r *Round) RealPlayers() []*player.Player {
-	players := make([]*player.Player, 0)
+func (r *Round) Players() []*player.Player {
+	players := make([]*player.Player, 0, len(r.players))
 	for _, p := range r.players {
-		if p != nil || p.Status() != player.StatusLeft {
+		if p != nil || p.Status() != player.StatusIdle {
 			players = append(players, p)
 		}
 	}

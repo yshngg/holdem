@@ -8,12 +8,12 @@ func TestStatusString(t *testing.T) {
 		status StatusType
 		want   string
 	}{
+		{"Idle", StatusIdle, "Idle"},
 		{"Ready", StatusReady, "Ready"},
 		{"Waiting", StatusWaitingToAct, "Waiting"},
 		{"TakingAction", StatusTakingAction, "TakingAction"},
 		{"Folded", StatusFolded, "Folded"},
 		{"AllIn", StatusAllIn, "AllIn"},
-		{"Spectating", StatusSpectating, "Spectating"},
 	}
 
 	for _, tc := range testCases {

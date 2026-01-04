@@ -86,7 +86,7 @@ func WithPlayers(players []*player.Player) Option {
 	return func(t *Table) {
 		for _, p := range players {
 			t.waiting = append(t.waiting, p)
-			t.waitingMap[p.ID().String()] = struct{}{}
+			t.waitingMap[p.ID()] = struct{}{}
 		}
 	}
 }
@@ -101,7 +101,7 @@ func (t *Table) Join(p *player.Player) error {
 	// exists := slices.ContainsFunc(t.waiting, func(pp *player.Player) bool {
 	// 	return p.ID() == pp.ID()
 	// })
-	_, exists := t.waitingMap[p.ID().String()]
+	_, exists := t.waitingMap[p.ID()]
 	if exists {
 		return fmt.Errorf("player %s (id: %s) have sat at the table", p.Name(), p.ID())
 	}
@@ -109,13 +109,13 @@ func (t *Table) Join(p *player.Player) error {
 		return fmt.Errorf("have reached the capacity of waiting")
 	}
 	t.waiting = append(t.waiting, p)
-	t.waitingMap[p.ID().String()] = struct{}{}
+	t.waitingMap[p.ID()] = struct{}{}
 	return nil
 }
 
 func (t *Table) Leave(ctx context.Context, p *player.Player) error {
 	if t.round != nil {
-		err := t.round.RemovePlayer(ctx, p)
+		err := t.round.RemovePlayer(ctx, p.ID())
 		if err != nil && !errors.Is(err, round.ErrPlayerNotFound{}) {
 			return fmt.Errorf("leave table, err: %v", err)
 		}
@@ -123,14 +123,14 @@ func (t *Table) Leave(ctx context.Context, p *player.Player) error {
 	// exists := slices.ContainsFunc(t.waiting, func(pp *player.Player) bool {
 	// 	return p.ID() == pp.ID()
 	// })
-	_, exists := t.waitingMap[p.ID().String()]
+	_, exists := t.waitingMap[p.ID()]
 	if !exists {
 		return fmt.Errorf("player %s (id: %s) did not sit at the table", p.Name(), p.ID())
 	}
 	t.waiting = slices.DeleteFunc(t.waiting, func(pp *player.Player) bool {
 		return p.ID() == pp.ID()
 	})
-	delete(t.waitingMap, p.ID().String())
+	delete(t.waitingMap, p.ID())
 	return nil
 }
 
@@ -167,7 +167,7 @@ func (t *Table) Start(ctx context.Context) error {
 		}
 		time.Sleep(5 * time.Second)
 
-		players = t.round.RealPlayers()
+		players = t.round.Players()
 		button++
 	}
 }
