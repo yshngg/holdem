@@ -357,7 +357,7 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 				// TODO(@yshngg): log error, but don't return or panic
 				continue
 			}
-			if p.Status() == player.StatusFolded && p.Status() == player.StatusAllIn {
+			if p.Status() != player.StatusWaitingToAct {
 				continue
 			}
 			if chips != maxBet {
@@ -367,64 +367,8 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 		return false
 	}
 
-	// p := r.players[(start)%len(r.players)]
-	// if p == nil || p.Status() != player.StatusWaitingToAct {
-	// 	return fmt.Errorf("player %s (id: %s) is not waiting to act (status: %s)", p.Name(), p.ID(), p.Status())
-	// }
-	// availableActions := []player.Action{
-	// 	{
-	// 		Type: player.ActionFold,
-	// 	},
-	// 	{
-	// 		Type: player.ActionAllIn,
-	// 	},
-	// }
-	// if maxBet == 0 {
-	// 	availableActions = append(availableActions, []player.Action{
-	// 		{
-	// 			Type:  player.ActionBet,
-	// 			Chips: r.minBet,
-	// 		},
-	// 		{
-	// 			Type: player.ActionCheck,
-	// 		},
-	// 	}...)
-	// } else {
-	// 	availableActions = []player.Action{
-	// 		{
-	// 			Type:  player.ActionCall,
-	// 			Chips: (maxBet - betChips[p.ID()]),
-	// 		},
-	// 		{
-	// 			Type:  player.ActionRaise,
-	// 			Chips: (maxBet - betChips[p.ID()]) + minRaise,
-	// 		},
-	// 	}
-	// }
-	// action, err := p.WaitForAction(ctx, availableActions)
-	// if err != nil {
-	// 	return fmt.Errorf("wait for action, err: %w", err)
-	// }
-	// r.pots.AddChips(p.ID(), action.Chips)
-	// betChips[p.ID()] += action.Chips
-
-	// switch action.Type {
-	// case player.ActionAllIn:
-	// 	if betChips[p.ID()] > maxBet {
-	// 		maxBet = betChips[p.ID()]
-	// 	}
-	// case player.ActionRaise:
-	// 	minRaise = betChips[p.ID()] - maxBet
-	// 	maxBet = betChips[p.ID()]
-	// case player.ActionBet:
-	// 	maxBet = action.Chips
-	// 	minRaise = maxBet
-	// }
-
 	i := 0
 	for keep() { // reopen the betting action
-		// for i := range len(r.players) - 1 {
-		// p := r.players[(start+i+1)%len(r.players)]
 		p := r.players[(start+i)%len(r.players)]
 		if p == nil || p.Status() != player.StatusWaitingToAct {
 			// TODO(@yshngg): only log
@@ -480,7 +424,6 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 			maxBet = action.Chips
 			minRaise = maxBet
 		}
-		// }
 		i++
 	}
 
