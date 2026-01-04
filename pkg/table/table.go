@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	defaultMinBet      = 2
-	defaultCapacity    = 8
-	defaultQueueLength = defaultCapacity * 2
+	defaultMinBet   = 2
+	defaultCapacity = 8
 
 	defaultMinPlayerCountInRound = 2
 	defaultMaxPlayerCountInRound = 22
@@ -23,6 +22,11 @@ const (
 type Table struct {
 	round *round.Round
 
+	// left indicates the players who left the table.
+	// Need to remove from the Round after the round is finished.
+	left []string
+
+	// waiting indicates the players who are waiting to join the table.
 	waiting []*player.Player
 	// capacity is cap of waiting slice
 	capacity int
@@ -114,24 +118,27 @@ func (t *Table) Join(p *player.Player) error {
 	return nil
 }
 
-func (t *Table) Leave(ctx context.Context, p *player.Player) error {
+func (t *Table) Leave(ctx context.Context, id string) error {
 	if t.round != nil {
-		err := t.round.RemovePlayer(ctx, p.ID())
-		if err != nil && !errors.Is(err, round.ErrPlayerNotFound{}) {
+		err := t.round.RemovePlayer(ctx, id)
+		if err == nil {
+			t.left = append(t.left, id)
+		}
+		if !errors.Is(err, round.ErrPlayerNotFound{}) {
 			return fmt.Errorf("leave table, err: %v", err)
 		}
 	}
 	// exists := slices.ContainsFunc(t.waiting, func(pp *player.Player) bool {
 	// 	return p.ID() == pp.ID()
 	// })
-	_, exists := t.waitingMap[p.ID()]
+	_, exists := t.waitingMap[id]
 	if !exists {
-		return fmt.Errorf("player %s (id: %s) did not sit at the table", p.Name(), p.ID())
+		return fmt.Errorf("player (id: %s) did not sit at the table", id)
 	}
 	t.waiting = slices.DeleteFunc(t.waiting, func(pp *player.Player) bool {
-		return p.ID() == pp.ID()
+		return id == pp.ID()
 	})
-	delete(t.waitingMap, p.ID())
+	delete(t.waitingMap, id)
 	return nil
 }
 
@@ -173,6 +180,11 @@ func (t *Table) Start(ctx context.Context) error {
 		time.Sleep(5 * time.Second)
 
 		players = t.round.Players()
+		for _, id := range t.left {
+			players = slices.DeleteFunc(players, func(pp *player.Player) bool {
+				return pp.ID() == id
+			})
+		}
 		button++
 	}
 }

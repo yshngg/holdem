@@ -163,7 +163,7 @@ func (p *Player) CancelReady() error {
 }
 
 // Close is used to close the channel.
-func (p *Player) Close(ctx context.Context) error {
+func (p *Player) Close() error {
 	p.once.Do(func() {
 		if p.active != nil {
 			close(p.active)
@@ -187,8 +187,12 @@ func (p *Player) HoleCards() [2]*card.Card {
 	return p.holeCards
 }
 
-func (p *Player) SetHoleCards(cards [2]*card.Card) {
+func (p *Player) SetHoleCards(cards [2]*card.Card) error {
 	p.holeCards = cards
+	if p.status != StatusReady {
+		return fmt.Errorf("player is not ready, cannot wait to act")
+	}
+	return nil
 }
 
 func (p *Player) Chips() int {

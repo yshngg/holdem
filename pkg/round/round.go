@@ -255,6 +255,7 @@ func (r *Round) RemovePlayer(ctx context.Context, id string) error {
 			return ctx.Err()
 		}
 	}
+	p.Close()
 	return nil
 }
 
@@ -338,11 +339,11 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 
 		chipsList := make([]int, 0, len(betChips))
 		allInList := make([]int, 0, len(betChips))
-		for pid, chips := range betChips {
+		for id, chips := range betChips {
 			if chips < 0 {
 				continue
 			}
-			p, err := r.FindPlayer(pid)
+			p, err := r.FindPlayer(id)
 			if err != nil {
 				// TODO(@yshngg): log error, but don't return or panic
 			}

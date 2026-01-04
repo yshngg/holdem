@@ -4,9 +4,9 @@ type StatusType int
 
 const (
 	StatusIdle         StatusType = iota
-	StatusReady                   // ready to start a new round
-	StatusWaitingToAct            // wait for next action
-	StatusTakingAction            // be taking action (include check, bet, raise, call)
+	StatusReady                   // ready to start a new round, wait for dealer to deal hole cards
+	StatusWaitingToAct            // wait for next action, after being dealt two hole cards
+	StatusTakingAction            // be thinking and taking action (include check, bet, raise, call)
 	StatusFolded                  // have folded, abandon any claim to the pot
 	StatusAllIn                   // have bet all chips and special rule comes into play
 )
