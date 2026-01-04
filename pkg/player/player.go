@@ -34,7 +34,6 @@ type Player struct {
 	chips         int
 	watcher       watch.Interface
 	status        StatusType
-	left          bool
 
 	// for action handling
 	once             sync.Once
@@ -163,7 +162,8 @@ func (p *Player) CancelReady() error {
 	return nil
 }
 
-func (p *Player) Leave(ctx context.Context) error {
+// Close is used to close the channel.
+func (p *Player) Close(ctx context.Context) error {
 	p.once.Do(func() {
 		if p.active != nil {
 			close(p.active)
@@ -172,7 +172,6 @@ func (p *Player) Leave(ctx context.Context) error {
 			close(p.actionChan)
 		}
 	})
-	p.left = true
 	return nil
 }
 
