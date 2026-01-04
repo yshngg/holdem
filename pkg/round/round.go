@@ -324,9 +324,24 @@ func (r *Round) Status() StatusType {
 }
 
 func (r *Round) openBettingRound(ctx context.Context) (err error) {
+	switch r.status {
+	case StatusPreFlop, StatusFlop, StatusTurn, StatusRiver:
+	default:
+		return fmt.Errorf("invalid status: %s", r.status)
+	}
+
 	maxBet := 0
+	if r.status == StatusPreFlop {
+		maxBet = r.minBet
+	}
 	minRaise := r.minBet
 	betChips := make(map[string]int) // chips that have bet in current betting round
+	small, big, err := r.positionBlind()
+	if err != nil {
+		return fmt.Errorf("position blind, err: %w", err)
+	}
+	betChips[r.players[small].ID()] = r.minBet / 2
+	betChips[r.players[big].ID()] = r.minBet
 	start, err := r.positionFirstToAct()
 	if err != nil {
 		return fmt.Errorf("position first to act, err: %w", err)
@@ -336,180 +351,137 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 		if r.playerCount.current != len(betChips) {
 			return true
 		}
-
-		chipsList := make([]int, 0, len(betChips))
-		allInList := make([]int, 0, len(betChips))
 		for id, chips := range betChips {
-			if chips < 0 {
-				continue
-			}
 			p, err := r.FindPlayer(id)
 			if err != nil {
 				// TODO(@yshngg): log error, but don't return or panic
+				continue
 			}
-			if p != nil && p.Status() == player.StatusWaitingToAct {
-				chipsList = append(chipsList, chips)
+			if p.Status() == player.StatusFolded && p.Status() == player.StatusAllIn {
+				continue
 			}
-			if p != nil && p.Status() == player.StatusAllIn {
-				allInList = append(allInList, chips)
-			}
-		}
-
-		// correct?
-		if len(chipsList) < 1 {
-			return true
-		}
-
-		first := chipsList[0]
-		for _, chips := range chipsList[1:] {
-			if chips != first {
+			if chips != maxBet {
 				return true
 			}
 		}
-
 		return false
 	}
 
-	// keep := func() bool {
-	// 	highestBetPosition := 0
-	// 	for i, p := range r.players {
-	// 		if p == nil || p.Status() != player.StatusWaitingToAct {
-	// 			continue
-	// 		}
-	// 		bet, acted := playerBetChips[p.ID()]
-	// 		if !acted || bet < 0 {
-	// 			continue
-	// 		}
-	// 		if bet > highestBetChips {
-	// 			highestBetChips = bet
-	// 			highestBetPosition = i
-	// 		}
+	// p := r.players[(start)%len(r.players)]
+	// if p == nil || p.Status() != player.StatusWaitingToAct {
+	// 	return fmt.Errorf("player %s (id: %s) is not waiting to act (status: %s)", p.Name(), p.ID(), p.Status())
+	// }
+	// availableActions := []player.Action{
+	// 	{
+	// 		Type: player.ActionFold,
+	// 	},
+	// 	{
+	// 		Type: player.ActionAllIn,
+	// 	},
+	// }
+	// if maxBet == 0 {
+	// 	availableActions = append(availableActions, []player.Action{
+	// 		{
+	// 			Type:  player.ActionBet,
+	// 			Chips: r.minBet,
+	// 		},
+	// 		{
+	// 			Type: player.ActionCheck,
+	// 		},
+	// 	}...)
+	// } else {
+	// 	availableActions = []player.Action{
+	// 		{
+	// 			Type:  player.ActionCall,
+	// 			Chips: (maxBet - betChips[p.ID()]),
+	// 		},
+	// 		{
+	// 			Type:  player.ActionRaise,
+	// 			Chips: (maxBet - betChips[p.ID()]) + minRaise,
+	// 		},
 	// 	}
+	// }
+	// action, err := p.WaitForAction(ctx, availableActions)
+	// if err != nil {
+	// 	return fmt.Errorf("wait for action, err: %w", err)
+	// }
+	// r.pots.AddChips(p.ID(), action.Chips)
+	// betChips[p.ID()] += action.Chips
 
-	// 	for i := range len(r.players) - 1 {
-	// 		p := r.players[(highestBetPosition+i+1)%len(r.players)]
-	// 		if p == nil || p.Status() != player.StatusWaitingToAct {
-	// 			continue
-	// 		}
-	// 		bet, acted := playerBetChips[p.ID()]
-	// 		if bet < 0 {
-	// 			continue
-	// 		}
-	// 		if !acted || bet < highestBetChips {
-	// 			return true
-	// 		}
+	// switch action.Type {
+	// case player.ActionAllIn:
+	// 	if betChips[p.ID()] > maxBet {
+	// 		maxBet = betChips[p.ID()]
 	// 	}
-	// 	return false
+	// case player.ActionRaise:
+	// 	minRaise = betChips[p.ID()] - maxBet
+	// 	maxBet = betChips[p.ID()]
+	// case player.ActionBet:
+	// 	maxBet = action.Chips
+	// 	minRaise = maxBet
 	// }
 
-	p := r.players[(start)%len(r.players)]
-
-	if p == nil || p.Status() != player.StatusWaitingToAct {
-		return fmt.Errorf("err: %w", err)
-	}
-	haveBet := betChips[p.ID()]
-	availableActions := []player.Action{
-		{
-			Type: player.ActionFold,
-		},
-		{
-			Type: player.ActionAllIn,
-		},
-	}
-	if maxBet == 0 {
-		availableActions = append(availableActions, []player.Action{
-			{
-				Type:  player.ActionBet,
-				Chips: r.minBet,
-			},
-			{
-				Type: player.ActionCheck,
-			},
-		}...)
-	} else {
-		availableActions = []player.Action{
-			{
-				Type:  player.ActionCall,
-				Chips: minRaise,
-			},
-			{
-				Type:  player.ActionRaise,
-				Chips: minRaise + (maxBet - haveBet),
-			},
-		}
-	}
-	action, err := p.WaitForAction(ctx, availableActions)
-	if err != nil {
-		return fmt.Errorf("wait for action, err: %w", err)
-	}
-	r.pots.AddChips(p.ID(), action.Chips)
-
-	if action.Type == player.ActionRaise || action.Type == player.ActionAllIn {
-		minRaise = action.Chips - maxBet
-		maxBet = action.Chips + haveBet
-	}
-	if action.Type == player.ActionBet {
-		maxBet = action.Chips
-		minRaise = action.Chips
-	}
-
+	i := 0
 	for keep() { // reopen the betting action
-		for i := range len(r.players) - 1 {
-			p := r.players[(start+i+1)%len(r.players)]
-			if p == nil || p.Status() != player.StatusWaitingToAct {
-				continue
-			}
-			// bet, acted := playerBetChips[p.ID()]
-			// if acted && bet < 0 {
-			// 	continue
-			// }
-			availableActions := []player.Action{
+		// for i := range len(r.players) - 1 {
+		// p := r.players[(start+i+1)%len(r.players)]
+		p := r.players[(start+i)%len(r.players)]
+		if p == nil || p.Status() != player.StatusWaitingToAct {
+			// TODO(@yshngg): only log
+			// fmt.Errorf("player %s (id: %s) is not waiting to act (status: %s)", p.Name(), p.ID(), p.Status())
+			continue
+		}
+		availableActions := []player.Action{
+			{
+				Type: player.ActionFold,
+			},
+			{
+				Type: player.ActionAllIn,
+			},
+		}
+		if maxBet == 0 {
+			availableActions = append(availableActions, []player.Action{
 				{
-					Type: player.ActionFold,
+					Type:  player.ActionBet,
+					Chips: r.minBet,
 				},
 				{
-					Type: player.ActionAllIn,
+					Type: player.ActionCheck,
 				},
-			}
-			if maxBet == 0 {
-				availableActions = append(availableActions, []player.Action{
-					{
-						Type:  player.ActionBet,
-						Chips: r.minBet,
-					},
-					{
-						Type: player.ActionCheck,
-					},
-				}...)
-			} else {
-				availableActions = []player.Action{
-					{
-						Type:  player.ActionCall,
-						Chips: minRaise,
-					},
-					{
-						Type: player.ActionRaise,
-						// Chips: (highestBetChips - bet) * 2,
-						Chips: minRaise + (maxBet - haveBet),
-					},
-				}
-			}
-			action, err := p.WaitForAction(ctx, availableActions)
-			if err != nil {
-				return fmt.Errorf("wait for action, err: %w", err)
-			}
-			r.pots.AddChips(p.ID(), action.Chips)
-
-			if action.Type == player.ActionRaise || action.Type == player.ActionAllIn {
-				minRaise = action.Chips - maxBet
-				start += i
-				break
-			}
-			if action.Type == player.ActionBet {
-				maxBet = action.Chips
-				minRaise = action.Chips
+			}...)
+		} else {
+			availableActions = []player.Action{
+				{
+					Type:  player.ActionCall,
+					Chips: (maxBet - betChips[p.ID()]),
+				},
+				{
+					Type:  player.ActionRaise,
+					Chips: (maxBet - betChips[p.ID()]) + minRaise,
+				},
 			}
 		}
+		action, err := p.WaitForAction(ctx, availableActions)
+		if err != nil {
+			return fmt.Errorf("wait for action, err: %w", err)
+		}
+		r.pots.AddChips(p.ID(), action.Chips)
+		betChips[p.ID()] += action.Chips
+
+		switch action.Type {
+		case player.ActionAllIn:
+			if betChips[p.ID()] > maxBet {
+				maxBet = betChips[p.ID()]
+			}
+		case player.ActionRaise:
+			minRaise = betChips[p.ID()] - maxBet
+			maxBet = betChips[p.ID()]
+		case player.ActionBet:
+			maxBet = action.Chips
+			minRaise = maxBet
+		}
+		// }
+		i++
 	}
 
 	return nil
