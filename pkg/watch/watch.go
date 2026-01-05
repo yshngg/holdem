@@ -2,55 +2,42 @@
 
 package watch
 
-type eventType int
-
-func (e eventType) String() string {
-	switch e {
-	case internalRunFunctionMarker:
-		return "internal"
-	default:
-		return ""
-	}
-}
-
-var _ EventType = eventType(internalRunFunctionMarker)
-
 const (
-	internalRunFunctionMarker eventType = iota // internal do function
+// internalRunFunctionMarker eventType = iota
 
-	// Undefined
-	EventTypeUndefined
+// // Undefined
+// EventTypeUndefined
 
-	// Player Event
-	PlayerPostSmallBlind
-	PlayerPostBigBlind
-	PlayerCheck
-	PlayerFold
-	PlayerBet
-	PlayerCall
-	PlayerRaise
-	PlayerAllIn
+// // Player Event
+// PlayerPostSmallBlind
+// PlayerPostBigBlind
+// PlayerCheck
+// PlayerFold
+// PlayerBet
+// PlayerCall
+// PlayerRaise
+// PlayerAllIn
 
-	// Deal Event
-	DealerShuffle
-	DealerHoleCards
-	DealerFlopCards
-	DealerTurnCard
-	DealerRiverCard
-	DealerBurnCard
+// // Deal Event
+// DealerShuffle
+// DealerHoleCards
+// DealerFlopCards
+// DealerTurnCard
+// DealerRiverCard
+// DealerBurnCard
 
-	// Round Event
-	RoundStart
-	RoundPreFlop
-	RoundFlop
-	RoundTurn
-	RoundRiver
-	RoundShowdown
-	RoundEnd
+// // Round Event
+// RoundStart
+// RoundPreFlop
+// RoundFlop
+// RoundTurn
+// RoundRiver
+// RoundShowdown
+// RoundEnd
 
-	// Table Event
-	TablePlayerJoin
-	TablePlayerLeave
+// // Table Event
+// TablePlayerJoin
+// TablePlayerLeave
 )
 
 // func (e EventType) String() string {
@@ -121,21 +108,6 @@ type Interface interface {
 var (
 	DefaultChanSize int32 = 100
 )
-
-// type Event struct {
-// 	Type   EventType
-// 	Object any
-// }
-
-type EventType interface {
-	String() string
-	Code() int
-}
-
-type Event interface {
-	Type() EventType
-	String() string
-}
 
 type emptyWatch chan Event
 

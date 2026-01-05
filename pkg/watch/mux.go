@@ -8,7 +8,7 @@ import (
 )
 
 type Broadcaster interface {
-	Action(action EventType, obj any) error
+	Action(event Event) error
 	Shutdown()
 	Watch() (Interface, error)
 	WatchWithPrefix(queuedEvents []Event) (Interface, error)
