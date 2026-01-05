@@ -28,7 +28,7 @@ func (e ErrNotEnoughChips) Error() string {
 
 type Player struct {
 	name          string
-	id            uuid.UUID
+	id            string
 	actionTimeout time.Duration
 	holeCards     [2]*card.Card
 	chips         int
@@ -43,7 +43,7 @@ type Player struct {
 }
 
 func New(opts ...Option) *Player {
-	id := uuid.New()
+	id := uuid.New().String()
 	p := &Player{
 		id:            id,
 		actionTimeout: defaultActionTimeout,
@@ -51,7 +51,7 @@ func New(opts ...Option) *Player {
 	}
 	p.Apply(opts...)
 	if len(p.name) == 0 {
-		p.name = base64.StdEncoding.EncodeToString([]byte(id.String()))[:7]
+		p.name = base64.StdEncoding.EncodeToString([]byte(id))[:7]
 	}
 	if p.chips == 0 {
 		p.chips = defaultChips
@@ -180,7 +180,7 @@ func (p *Player) Name() string {
 }
 
 func (p *Player) ID() string {
-	return p.id.String()
+	return p.id
 }
 
 func (p *Player) HoleCards() [2]*card.Card {

@@ -310,11 +310,11 @@ func (r *Round) betBlind(ctx context.Context) error {
 	r.pots.AddChips(r.players[small].ID(), r.minBet/2)
 	r.pots.AddChips(r.players[big].ID(), r.minBet)
 
-	if err = r.broadcaster.Action(player.EventPostSmallBlind, player.EventObject{Player: r.players[small], Bet: r.minBet / 2}); err != nil {
-		return fmt.Errorf("broadcaster action, err: %w", err)
+	if err := r.broadcaster.Action(player.EventPostSmallBlind, player.EventObject{Player: r.players[small], Bet: r.minBet / 2}); err != nil {
+		return fmt.Errorf("broadcast event: %s, err: %w", player.EventPostSmallBlind, err)
 	}
-	if err = r.broadcaster.Action(player.EventPostBigBlind, player.EventObject{Player: r.players[big], Bet: r.minBet}); err != nil {
-		return fmt.Errorf("broadcaster action, err: %w", err)
+	if err := r.broadcaster.Action(player.EventPostBigBlind, player.EventObject{Player: r.players[big], Bet: r.minBet}); err != nil {
+		return fmt.Errorf("broadcast event: %s, err: %w", player.EventPostBigBlind, err)
 	}
 	return nil
 }
@@ -335,23 +335,29 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 		maxBet = r.minBet
 	}
 	minRaise := r.minBet
-	betChips := make(map[string]int) // chips that have bet in current betting round
+	bets := make(map[string]int) // chips that have bet in current betting round
 	small, big, err := r.positionBlind()
 	if err != nil {
 		return fmt.Errorf("position blind, err: %w", err)
 	}
-	betChips[r.players[small].ID()] = r.minBet / 2
-	betChips[r.players[big].ID()] = r.minBet
+	bets[r.players[small].ID()] = r.minBet / 2
+	bets[r.players[big].ID()] = r.minBet
+	acted := make(map[string]bool) // map player id to whether they have acted in the current betting round
+	for _, p := range r.players {
+		acted[p.ID()] = false
+	}
 	start, err := r.positionFirstToAct()
 	if err != nil {
 		return fmt.Errorf("position first to act, err: %w", err)
 	}
 
-	keep := func() bool {
-		if r.playerCount.current != len(betChips) {
-			return true
+	next := func() bool {
+		for _, ok := range acted {
+			if !ok {
+				return true
+			}
 		}
-		for id, chips := range betChips {
+		for id, chips := range bets {
 			p, err := r.FindPlayer(id)
 			if err != nil {
 				// TODO(@yshngg): log error, but don't return or panic
@@ -368,10 +374,10 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 	}
 
 	i := 0
-	for keep() { // reopen the betting action
+	for next() { // reopen the betting action
 		p := r.players[(start+i)%len(r.players)]
 		if p == nil || p.Status() != player.StatusWaitingToAct {
-			// TODO(@yshngg): only log
+			// TODO(@yshngg): log error, but don't return or panic
 			// fmt.Errorf("player %s (id: %s) is not waiting to act (status: %s)", p.Name(), p.ID(), p.Status())
 			continue
 		}
@@ -397,11 +403,11 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 			availableActions = []player.Action{
 				{
 					Type:  player.ActionCall,
-					Chips: (maxBet - betChips[p.ID()]),
+					Chips: (maxBet - bets[p.ID()]),
 				},
 				{
 					Type:  player.ActionRaise,
-					Chips: (maxBet - betChips[p.ID()]) + minRaise,
+					Chips: (maxBet - bets[p.ID()]) + minRaise,
 				},
 			}
 		}
@@ -409,25 +415,38 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 		if err != nil {
 			return fmt.Errorf("wait for action, err: %w", err)
 		}
-		r.pots.AddChips(p.ID(), action.Chips)
-		betChips[p.ID()] += action.Chips
+
+		switch action.Type {
+		case player.ActionAllIn, player.ActionRaise, player.ActionBet, player.ActionCall:
+			r.pots.AddChips(p.ID(), action.Chips)
+			bets[p.ID()] += action.Chips
+		}
 
 		switch action.Type {
 		case player.ActionAllIn:
-			if betChips[p.ID()] > maxBet {
-				maxBet = betChips[p.ID()]
+			if bets[p.ID()] > maxBet {
+				maxBet = bets[p.ID()]
 			}
 		case player.ActionRaise:
-			minRaise = betChips[p.ID()] - maxBet
-			maxBet = betChips[p.ID()]
+			minRaise = bets[p.ID()] - maxBet
+			maxBet = bets[p.ID()]
 		case player.ActionBet:
 			maxBet = action.Chips
 			minRaise = maxBet
 		}
+		acted[p.ID()] = true
 		i++
 	}
 
 	return nil
+}
+
+type ErrBroadcast struct {
+	Event watch.Event
+}
+
+func (e ErrBroadcast) Error() string {
+	return fmt.Sprintf("broadcast event %s", e.Event)
 }
 
 func (r *Round) Start(ctx context.Context) error {
@@ -442,21 +461,20 @@ func (r *Round) Start(ctx context.Context) error {
 
 	// ready to start the round
 	r.status = StatusStarted
-	err := r.openBettingRound(ctx)
-	if err != nil {
-		return fmt.Errorf("open betting round: err: %w", err)
+	if err := r.broadcaster.Action(EventStart, EventObject{}); err != nil {
+		return fmt.Errorf("broadcast event: %s, err: %w", EventStart, err)
 	}
 
 	// prepare players
-	err = r.prepare(ctx)
+	err := r.prepare(ctx)
 	if err != nil {
 		return fmt.Errorf("start round, err: %w", err)
 	}
 
 	// dealer shuffle deck
 	r.dealer.Shuffle()
-	if err = r.broadcaster.Action(dealer.EventShuffle, dealer.EventObject{}); err != nil {
-		return fmt.Errorf("broadcaster action, err: %w", err)
+	if err := r.broadcaster.Action(dealer.EventShuffle, dealer.EventObject{}); err != nil {
+		return fmt.Errorf("broadcast event: %s, err: %w", dealer.EventShuffle, err)
 	}
 
 	// compulsory bets

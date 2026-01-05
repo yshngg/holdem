@@ -7,18 +7,19 @@ import (
 type EventType = watch.EventType
 
 const (
-	EventInvalid        = watch.EventTypeInvalid
-	EventPostSmallBlind = watch.PlayerPostSmallBlind
-	EventPostBigBlind   = watch.PlayerPostBigBlind
-	EventCheck          = watch.PlayerCheck
-	EventFold           = watch.PlayerFold
-	EventBet            = watch.PlayerBet
-	EventCall           = watch.PlayerCall
-	EventRaise          = watch.PlayerRaise
-	EventAllIn          = watch.PlayerAllIn
+	EventTypeUndefined  EventType = watch.EventTypeUndefined
+	EventPostSmallBlind           = watch.PlayerPostSmallBlind
+	EventPostBigBlind             = watch.PlayerPostBigBlind
+	EventCheck                    = watch.PlayerCheck
+	EventFold                     = watch.PlayerFold
+	EventBet                      = watch.PlayerBet
+	EventCall                     = watch.PlayerCall
+	EventRaise                    = watch.PlayerRaise
+	EventAllIn                    = watch.PlayerAllIn
 )
 
 type EventObject struct {
-	Player *Player
-	Bet    int
+	ID    string
+	Bet   int
+	Raise int
 }

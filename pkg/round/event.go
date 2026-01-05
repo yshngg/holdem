@@ -8,20 +8,20 @@ import (
 	"github.com/yshngg/holdem/pkg/watch"
 )
 
-type EventType int
+type EventType = watch.EventType
 
 const (
-	Start    = watch.RoundStart
-	PreFlop  = watch.RoundPreFlop
-	Flop     = watch.RoundFlop
-	Turn     = watch.RoundTurn
-	River    = watch.RoundRiver
-	Showdown = watch.RoundShowdown
-	End      = watch.RoundEnd
+	EventStart    EventType = watch.RoundStart
+	EventPreFlop            = watch.RoundPreFlop
+	EventFlop               = watch.RoundFlop
+	EventTurn               = watch.RoundTurn
+	EventRiver              = watch.RoundRiver
+	EventShowdown           = watch.RoundShowdown
+	EventEnd                = watch.RoundEnd
 )
 
 type EventObject struct {
-	communityCards []card.Card
-	players        []player.Player
-	timestamp      time.Time
+	CommunityCards []card.Card
+	Players        []player.Player
+	Timestamp      time.Time
 }

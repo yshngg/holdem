@@ -46,7 +46,7 @@ func (at ActionType) IntoEventType() EventType {
 	case ActionAllIn:
 		return EventAllIn
 	default:
-		return EventInvalid
+		return EventTypeUndefined
 	}
 }
 
