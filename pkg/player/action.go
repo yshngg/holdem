@@ -10,6 +10,8 @@ const (
 	ActionCall
 	ActionRaise
 	ActionAllIn
+	ActionShowHoleCards
+	ActionHideHoleCards
 )
 
 func (at ActionType) String() string {
@@ -26,33 +28,18 @@ func (at ActionType) String() string {
 		return "Raise"
 	case ActionAllIn:
 		return "AllIn"
+	case ActionShowHoleCards:
+		return "ShowHoleCards"
+	case ActionHideHoleCards:
+		return "HideHoleCards"
 	default:
 		return "Invalid"
 	}
 }
 
-func (at ActionType) IntoEventType() EventType {
-	switch at {
-	case ActionCheck:
-		return EventCheck
-	case ActionFold:
-		return EventFold
-	case ActionBet:
-		return EventBet
-	case ActionCall:
-		return EventCall
-	case ActionRaise:
-		return EventRaise
-	case ActionAllIn:
-		return EventAllIn
-	default:
-		return EventTypeUndefined
-	}
-}
-
 func (at ActionType) ToStatus() StatusType {
 	switch at {
-	case ActionCheck, ActionBet, ActionRaise, ActionCall:
+	case ActionCheck, ActionBet, ActionRaise, ActionCall, ActionShowHoleCards, ActionHideHoleCards:
 		return StatusWaitingToAct
 	case ActionFold:
 		return StatusFolded

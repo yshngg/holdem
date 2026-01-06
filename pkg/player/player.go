@@ -252,6 +252,9 @@ func (p *Player) takeAction(ctx context.Context, action Action) error {
 	}
 }
 
+// WaitForAction wait for the player to take action
+// action[0] is the default action.
+// TODO(@yshngg): check correct of function call params
 func (p *Player) WaitForAction(ctx context.Context, actions []Action) (*Action, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, p.actionTimeout, fmt.Errorf("action timeout"))
 	defer cancel()
@@ -285,14 +288,10 @@ Drain:
 		p.availableActions = nil
 	}()
 
-	action := Action{Type: ActionFold}
+	action := actions[0]
 	select {
 	case <-ctx.Done():
 		<-p.active
-		if _, ok := p.availableActions[ActionCheck]; ok {
-			action = Action{Type: ActionCheck}
-		}
-
 	case action = <-p.actionChan:
 	}
 

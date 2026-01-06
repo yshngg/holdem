@@ -1,5 +1,3 @@
-// xref: k8s.io/apimachinery/pkg/watch
-
 package watch
 
 import "sync"

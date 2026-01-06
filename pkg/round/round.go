@@ -269,7 +269,19 @@ func (r *Round) prepare(ctx context.Context) error {
 			return fmt.Errorf("failed to watch broadcaster: %w", err)
 		}
 		watcher = watch.Filter(watcher, func(in watch.Event) (out watch.Event, keep bool) {
-			// TODO(@yshngg): implement filter function
+			// TODO(@yshngg): filter showdown event
+			// TODO(@yshngg): hiden burned card (dealer)
+			// hole cards are only visable to player own them
+			if in.Kind() == dealer.EventKind {
+				dealerEvent := in.(dealer.Event)
+				dealerEventObject := dealerEvent.Related().(dealer.EventObject)
+				if dealerEvent.Action() != dealer.EventDealHoleCards || dealerEventObject.To == dealer.ToPlayer(p) {
+					return in, true
+				}
+				// zero other player's hole cards
+				cards := make([]*card.Card, len(dealerEventObject.Cards))
+				dealer.NewEvent(dealerEvent.Action(), dealerEventObject.To, cards...)
+			}
 			return in, true
 		})
 		p.Apply(player.WithWatcher(watcher))
@@ -310,10 +322,18 @@ func (r *Round) betBlind(ctx context.Context) error {
 	r.pots.AddChips(r.players[small].ID(), r.minBet/2)
 	r.pots.AddChips(r.players[big].ID(), r.minBet)
 
-	if err := r.broadcaster.Action(player.EventPostSmallBlind, player.EventObject{Player: r.players[small], Bet: r.minBet / 2}); err != nil {
+	smallBlindEvent := player.NewEvent(player.EventPostSmallBlind, player.EventObject{
+		ID:  r.players[small].ID(),
+		Bet: r.minBet / 2,
+	})
+	if err := r.broadcaster.Action(smallBlindEvent); err != nil {
 		return fmt.Errorf("broadcast event: %s, err: %w", player.EventPostSmallBlind, err)
 	}
-	if err := r.broadcaster.Action(player.EventPostBigBlind, player.EventObject{Player: r.players[big], Bet: r.minBet}); err != nil {
+	bigBlindEvent := player.NewEvent(player.EventPostSmallBlind, player.EventObject{
+		ID:  r.players[big].ID(),
+		Bet: r.minBet,
+	})
+	if err := r.broadcaster.Action(bigBlindEvent); err != nil {
 		return fmt.Errorf("broadcast event: %s, err: %w", player.EventPostBigBlind, err)
 	}
 	return nil
@@ -323,6 +343,7 @@ func (r *Round) Status() StatusType {
 	return r.status
 }
 
+// TODO(@yshngg): broadcast action taken by the player
 func (r *Round) openBettingRound(ctx context.Context) (err error) {
 	switch r.status {
 	case StatusPreFlop, StatusFlop, StatusTurn, StatusRiver:
@@ -461,9 +482,6 @@ func (r *Round) Start(ctx context.Context) error {
 
 	// ready to start the round
 	r.status = StatusStarted
-	if err := r.broadcaster.Action(EventStart, EventObject{}); err != nil {
-		return fmt.Errorf("broadcast event: %s, err: %w", EventStart, err)
-	}
 
 	// prepare players
 	err := r.prepare(ctx)
@@ -471,10 +489,16 @@ func (r *Round) Start(ctx context.Context) error {
 		return fmt.Errorf("start round, err: %w", err)
 	}
 
+	roundStartEvent := NewEvent(EventStart, r.players, nil)
+	if err := r.broadcaster.Action(roundStartEvent); err != nil {
+		return fmt.Errorf("broadcast event: %v, err: %w", roundStartEvent, err)
+	}
+
 	// dealer shuffle deck
 	r.dealer.Shuffle()
-	if err := r.broadcaster.Action(dealer.EventShuffle, dealer.EventObject{}); err != nil {
-		return fmt.Errorf("broadcast event: %s, err: %w", dealer.EventShuffle, err)
+	dealerShuffleEvent := dealer.NewEvent(dealer.EventShuffle, dealer.ToAll())
+	if err := r.broadcaster.Action(dealerShuffleEvent); err != nil {
+		return fmt.Errorf("broadcast event: %v, err: %w", dealerShuffleEvent, err)
 	}
 
 	// compulsory bets
@@ -487,19 +511,15 @@ func (r *Round) Start(ctx context.Context) error {
 	holeCards := r.dealer.DealHoleCards(playerCount)
 	for i := range len(r.players) {
 		p := r.players[(r.button+i+1)%len(r.players)]
-		if p == nil || p.Status() != player.StatusReady {
+		if p == nil {
 			continue
 		}
 		p.SetHoleCards(holeCards[i])
-		if err = r.broadcaster.Action(dealer.EventHoleCards, dealer.EventObject{HoleCards: holeCards[i]}); err != nil {
-			return fmt.Errorf("broadcaster action, err: %w", err)
+		dealHoleCardsEvent := dealer.NewEvent(dealer.EventDealHoleCards, dealer.ToPlayer(p), holeCards[i][:]...)
+		if err := r.broadcaster.Action(dealHoleCardsEvent); err != nil {
+			return fmt.Errorf("broadcast event: %v, err: %w", dealHoleCardsEvent, err)
 		}
 	}
-	err = r.openBettingRound(ctx)
-	if err != nil {
-		return fmt.Errorf("open betting round: err: %w", err)
-	}
-
 	// pre-flop betting round
 	err = r.openBettingRound(ctx)
 	if err != nil {
@@ -508,16 +528,18 @@ func (r *Round) Start(ctx context.Context) error {
 
 	// flop
 	r.status = StatusFlop
-	r.dealer.BurnCard()
+	burnCard := r.dealer.BurnCard()
+	burnCardEvent := dealer.NewEvent(dealer.EventDealFlopCards, dealer.ToCommunity(), burnCard)
+	if err := r.broadcaster.Action(burnCardEvent); err != nil {
+		return fmt.Errorf("broadcast event: %v, err: %w", burnCardEvent, err)
+	}
 	flopCards := r.dealer.DealFlopCards()
 	for _, card := range flopCards {
 		r.communityCards = append(r.communityCards, card)
 	}
-	for _, p := range r.players {
-		if p == nil || p.Status() == player.StatusFolded {
-			continue
-		}
-		r.broadcaster.Action(dealer.EventFlopCards, dealer.EventObject{FlopCards: flopCards})
+	dealFlopCardsEvent := dealer.NewEvent(dealer.EventDealFlopCards, dealer.ToCommunity(), flopCards[:]...)
+	if err := r.broadcaster.Action(dealFlopCardsEvent); err != nil {
+		return fmt.Errorf("broadcast event: %v, err: %w", dealFlopCardsEvent, err)
 	}
 
 	// flop betting round
@@ -528,15 +550,18 @@ func (r *Round) Start(ctx context.Context) error {
 
 	// turn
 	r.status = StatusTurn
-	r.dealer.BurnCard()
+	burnCard = r.dealer.BurnCard()
+	burnCardEvent = dealer.NewEvent(dealer.EventDealFlopCards, dealer.ToCommunity(), burnCard)
+	if err := r.broadcaster.Action(burnCardEvent); err != nil {
+		return fmt.Errorf("broadcast event: %v, err: %w", burnCardEvent, err)
+	}
 	turnCard := r.dealer.DealTurnCard()
 	r.communityCards = append(r.communityCards, turnCard)
-	for _, p := range r.players {
-		if p == nil {
-			continue
-		}
-		r.broadcaster.Action(dealer.EventTurnCard, dealer.EventObject{TurnCard: turnCard})
+	dealTurnCardEvent := dealer.NewEvent(dealer.EventDealTurnCard, dealer.ToCommunity(), turnCard)
+	if err := r.broadcaster.Action(dealTurnCardEvent); err != nil {
+		return fmt.Errorf("broadcast event: %v, err: %w", dealTurnCardEvent, err)
 	}
+
 	// turn betting round
 	err = r.openBettingRound(ctx)
 	if err != nil {
@@ -545,16 +570,16 @@ func (r *Round) Start(ctx context.Context) error {
 
 	// river
 	r.status = StatusRiver
-	r.dealer.BurnCard()
+	burnCard = r.dealer.BurnCard()
+	burnCardEvent = dealer.NewEvent(dealer.EventDealFlopCards, dealer.ToCommunity(), burnCard)
+	if err := r.broadcaster.Action(burnCardEvent); err != nil {
+		return fmt.Errorf("broadcast event: %v, err: %w", burnCardEvent, err)
+	}
 	riverCard := r.dealer.DealTurnCard()
 	r.communityCards = append(r.communityCards, riverCard)
-	for _, p := range r.players {
-		if p == nil {
-			continue
-		}
-		if err = r.broadcaster.Action(dealer.EventRiverCard, dealer.EventObject{RiverCard: riverCard}); err != nil {
-			return fmt.Errorf("broadcaster action, err: %w", err)
-		}
+	dealRiverCardEvent := dealer.NewEvent(dealer.EventDealRiverCard, dealer.ToCommunity(), riverCard)
+	if err := r.broadcaster.Action(dealRiverCardEvent); err != nil {
+		return fmt.Errorf("broadcast event: %v, err: %w", dealRiverCardEvent, err)
 	}
 
 	// turn betting round
@@ -565,6 +590,28 @@ func (r *Round) Start(ctx context.Context) error {
 
 	// showdown
 	r.status = StatusShowdown
+	// TODO(@yshngg): showdown???
+	// cards, err := r.Showdown(ctx)
+
+	for _, pot := range r.pots.Settle() {
+		players := make([]*player.Player, len(r.players))
+		for id := range pot.Contributors() {
+			p := new(player.Player)
+			if p, err = r.FindPlayer(id); err != nil {
+				return fmt.Errorf("find player (id: %s), err: %w", id, err)
+			}
+			if p.Status() != player.StatusTakingAction && p.Status() != player.StatusAllIn {
+				continue
+			}
+			players = append(players, p)
+			// TODO(@yshngg): compare player's best five cards and win the pot
+		}
+	}
+
+	roundShowdownEvent := NewEvent(EventShowdown, players, r.communityCards...)
+	if err := r.broadcaster.Action(roundShowdownEvent); err != nil {
+		return fmt.Errorf("broadcast event: %v, err: %w", roundShowdownEvent, err)
+	}
 
 	return nil
 }
@@ -578,7 +625,7 @@ func (r *Round) End() error {
 	return nil
 }
 
-func (r *Round) Showdown(show bool) map[string][2]*card.Card {
+func (r *Round) Showdown(ctx context.Context) (map[string][2]*card.Card, error) {
 	holeCards := make(map[string][2]*card.Card, 0)
 	for _, p := range r.players {
 		if p.Status() == player.StatusFolded {
@@ -586,10 +633,36 @@ func (r *Round) Showdown(show bool) map[string][2]*card.Card {
 		}
 		holeCards[p.ID()] = p.HoleCards()
 	}
-	if len(holeCards) == 1 && !show {
-		return nil
+
+	if len(holeCards) < 1 {
+		return nil, fmt.Errorf("game has long been over")
 	}
-	return holeCards
+	if len(holeCards) > 1 {
+		return holeCards, nil
+	}
+	var id string
+	for id = range holeCards {
+	}
+	p, err := r.FindPlayer(id)
+	if err != nil {
+		return nil, fmt.Errorf("find player, err: %w", err)
+	}
+	action, err := p.WaitForAction(ctx, []player.Action{
+		player.Action{Type: player.ActionHideHoleCards},
+		player.Action{Type: player.ActionShowHoleCards},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("wait for action, err: %w", err)
+	}
+	if action.Type != player.ActionShowHoleCards {
+		// zero hole cards
+		cards := holeCards[id]
+		for i := range len(cards) {
+			cards[i] = nil
+		}
+		holeCards[id] = cards
+	}
+	return holeCards, nil
 }
 
 func (r *Round) Players() []*player.Player {

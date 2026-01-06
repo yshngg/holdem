@@ -1,5 +1,3 @@
-// xref: k8s.io/apimachinery/pkg/watch
-
 package watch
 
 import (
@@ -46,8 +44,6 @@ func NewBroadcaster(incomingQueueLength, outgoingQueueLength int) Broadcaster {
 	return m
 }
 
-type functionFakeObject func()
-
 // Execute f, blocking the incoming queue (and waiting for it to drain first).
 // The purpose of this terrible hack is so that watchers added after an event
 // won't ever see that event, and will always see any event after they are
@@ -62,13 +58,11 @@ func (m *broadcaster) blockQueue(f func()) {
 	}
 	var wg sync.WaitGroup
 	wg.Add(1)
-	m.incoming <- Event{
-		Type: internalRunFunctionMarker,
-		Object: functionFakeObject(func() {
+	m.incoming <- newInternalEvent(runFunction,
+		eventObject{do: func() {
 			defer wg.Done()
 			f()
-		}),
-	}
+		}})
 	wg.Wait()
 }
 
@@ -150,7 +144,7 @@ func (m *broadcaster) closeAll() {
 }
 
 // Action distributes the given event among all watchers.
-func (m *broadcaster) Action(action EventType, obj any) error {
+func (m *broadcaster) Action(event Event) error {
 	m.incomingBlock.Lock()
 	defer m.incomingBlock.Unlock()
 	select {
@@ -159,7 +153,7 @@ func (m *broadcaster) Action(action EventType, obj any) error {
 	default:
 	}
 
-	m.incoming <- Event{action, obj}
+	m.incoming <- event
 	return nil
 }
 
@@ -182,8 +176,11 @@ func (m *broadcaster) loop() {
 	// Deliberately not catching crashes here. Yes, bring down the process if there's a
 	// bug in watch.Broadcaster.
 	for event := range m.incoming {
-		if event.Type == internalRunFunctionMarker {
-			event.Object.(functionFakeObject)()
+		if event.Kind() == internalEventKind {
+			switch event.Related().(type) {
+			case eventObject:
+				event.Related().(eventObject).do()
+			}
 			continue
 		}
 		m.distribute(event)

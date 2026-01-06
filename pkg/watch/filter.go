@@ -1,5 +1,3 @@
-// xref: k8s.io/apimachinery/pkg/watch
-
 package watch
 
 // FilterFunc should take an event, possibly modify it in some way, and return
