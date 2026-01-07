@@ -372,6 +372,7 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 		return fmt.Errorf("position first to act, err: %w", err)
 	}
 
+	// TODO(@yshngg): player don't need to take any action after the player allin
 	next := func() bool {
 		for _, ok := range acted {
 			if !ok {
