@@ -142,6 +142,14 @@ func (p *Player) AllIn(ctx context.Context) error {
 	return p.takeAction(ctx, Action{Type: ActionAllIn})
 }
 
+func (p *Player) ShowHoleCards(ctx context.Context) error {
+	return p.takeAction(ctx, Action{Type: ActionShowHoleCards})
+}
+
+func (p *Player) HideHoleCards(ctx context.Context) error {
+	return p.takeAction(ctx, Action{Type: ActionHideHoleCards})
+}
+
 func (p *Player) Ready() error {
 	if p.status != StatusIdle {
 		return fmt.Errorf("player is not idle, cannot ready")
