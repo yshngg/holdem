@@ -2,6 +2,7 @@ package player
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/base64"
 	"fmt"
 	"sync"
@@ -27,7 +28,9 @@ func (e ErrNotEnoughChips) Error() string {
 }
 
 type Player struct {
-	name          string
+	// human readable identity
+	name string
+	// machine readable identity
 	id            string
 	actionTimeout time.Duration
 	holeCards     [2]*card.Card
@@ -43,15 +46,22 @@ type Player struct {
 }
 
 func New(opts ...Option) *Player {
-	id := uuid.New().String()
 	p := &Player{
-		id:            id,
-		actionTimeout: defaultActionTimeout,
-		status:        StatusIdle,
+		status: StatusIdle,
 	}
-	p.Apply(opts...)
+	for _, opt := range opts {
+		opt(p)
+	}
+	if p.actionTimeout <= 0 {
+		p.actionTimeout = defaultActionTimeout
+	}
+	if len(p.id) == 0 {
+		p.id = uuid.New().String()
+	}
 	if len(p.name) == 0 {
-		p.name = base64.StdEncoding.EncodeToString([]byte(id))[:7]
+		h := md5.New()
+		sum := h.Sum([]byte(p.id))
+		p.name = base64.StdEncoding.EncodeToString(sum)[:7]
 	}
 	if p.chips == 0 {
 		p.chips = defaultChips
@@ -60,6 +70,12 @@ func New(opts ...Option) *Player {
 }
 
 type Option func(*Player)
+
+func WithID(id string) Option {
+	return func(p *Player) {
+		p.id = id
+	}
+}
 
 func WithName(name string) Option {
 	return func(p *Player) {
@@ -112,7 +128,7 @@ func (p *Player) Apply(opts ...Option) {
 }
 
 // TODO(@yshngg): Implement BestFiveCard method
-func (p *Player) BestFiveCard(communityCards [5]*card.Card) [5]*card.Card {
+func (p *Player) BestFiveCard(communityCards ...*card.Card) [5]*card.Card {
 	var bestFive [5]*card.Card
 
 	return bestFive
@@ -160,6 +176,16 @@ func (p *Player) Ready() error {
 	return nil
 }
 
+// Reset reset the player's status.
+func (p *Player) Reset() error {
+	p.active = make(chan bool, 1)
+	p.actionChan = make(chan Action)
+	p.status = StatusReady
+	p.holeCards = [2]*card.Card{}
+	p.availableActions = make(map[ActionType]Action)
+	return nil
+}
+
 func (p *Player) CancelReady() error {
 	if p.status != StatusReady {
 		return fmt.Errorf("player is not ready, cannot cancel")
@@ -170,8 +196,8 @@ func (p *Player) CancelReady() error {
 	return nil
 }
 
-// Close is used to close the channel.
-func (p *Player) Close() error {
+// Gone is used to release resources.
+func (p *Player) Gone() error {
 	p.once.Do(func() {
 		if p.active != nil {
 			close(p.active)

@@ -25,10 +25,17 @@ type playerCount struct {
 }
 
 type Round struct {
+	number int
+
+	// position []*string
+
 	// players is a slice of players indexed by their position at the table.
 	// The slice length corresponds to the maximum number of seats.
 	// Must not be modified after the round starts.
 	players []*player.Player
+	// players map[string]*player.Player
+
+	// playersMap map[string]*player.Player
 
 	// dealer handles card shuffling and dealing operations.
 	// Responsible for dealing hole cards to players and community cards to the table.
@@ -107,6 +114,12 @@ func New(players []*player.Player, opts ...Option) *Round {
 }
 
 type Option func(*Round)
+
+func WithNumber(number int) Option {
+	return func(r *Round) {
+		r.number = number
+	}
+}
 
 func WithButton(button int) Option {
 	return func(r *Round) {
@@ -188,25 +201,25 @@ func (e ErrRoundAlreadyStarted) Error() string {
 	return "round has already started"
 }
 
-func (r *Round) AddPlayer(p *player.Player) error {
-	if r.ExistsPlayer(p.ID()) {
-		return ErrPlayerAlreadyExists{}
-	}
-	if r.status.After(StatusStarted) {
-		return ErrRoundAlreadyStarted{}
-	}
-	if r.CountPlayer() >= r.playerCount.max {
-		return ErrMaxPlayerCountReached{}
-	}
-	for i, pp := range r.players {
-		if pp == nil {
-			r.players[i] = p
-			return nil
-		}
-	}
-	r.players = append(r.players, p)
-	return nil
-}
+// func (r *Round) AddPlayer(p *player.Player) error {
+// 	if r.ExistsPlayer(p.ID()) {
+// 		return ErrPlayerAlreadyExists{}
+// 	}
+// 	if r.status.After(StatusStarted) {
+// 		return ErrRoundAlreadyStarted{}
+// 	}
+// 	if r.CountPlayer() >= r.playerCount.max {
+// 		return ErrMaxPlayerCountReached{}
+// 	}
+// 	for i, pp := range r.players {
+// 		if pp == nil {
+// 			r.players[i] = p
+// 			return nil
+// 		}
+// 	}
+// 	r.players = append(r.players, p)
+// 	return nil
+// }
 
 type ErrPlayerNotFound struct {
 	id string
@@ -398,9 +411,13 @@ func (r *Round) openBettingRound(ctx context.Context) (err error) {
 	i := 0
 	for next() { // reopen the betting action
 		p := r.players[(start+i)%len(r.players)]
-		if p == nil || p.Status() != player.StatusWaitingToAct {
+		if p == nil {
 			// TODO(@yshngg): log error, but don't return or panic
 			// fmt.Errorf("player %s (id: %s) is not waiting to act (status: %s)", p.Name(), p.ID(), p.Status())
+			continue
+		}
+		if p.Status() == player.StatusFolded || p.Status() == player.StatusAllIn {
+			acted[p.ID()] = true
 			continue
 		}
 		availableActions := []player.Action{
@@ -621,7 +638,7 @@ func (r *Round) End() error {
 	r.status = StatusEnd
 	for _, p := range r.players {
 		p.StopWatch()
-		p.Ready()
+		p.Reset()
 	}
 	return nil
 }
