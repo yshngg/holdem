@@ -2,8 +2,8 @@ package round
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/yshngg/holdem/pkg/card"
 	"github.com/yshngg/holdem/pkg/dealer"
@@ -27,15 +27,11 @@ type playerCount struct {
 type Round struct {
 	number int
 
-	// position []*string
+	// position indicates the position relationship among players in round.
+	position []string
 
-	// players is a slice of players indexed by their position at the table.
-	// The slice length corresponds to the maximum number of seats.
-	// Must not be modified after the round starts.
-	players []*player.Player
-	// players map[string]*player.Player
-
-	// playersMap map[string]*player.Player
+	// players only includes players in round.
+	players map[string]*player.Player
 
 	// dealer handles card shuffling and dealing operations.
 	// Responsible for dealing hole cards to players and community cards to the table.
@@ -72,12 +68,32 @@ type Round struct {
 	playerCount playerCount
 }
 
-func New(players []*player.Player, opts ...Option) *Round {
+// New init a new round, button must greater than or equal to zero.
+func New(players []*player.Player, button int, opts ...Option) *Round {
+	if button <= 0 {
+		panic(errors.New("MUST button >= 0"))
+	}
+	counter := button
+	position := make([]string, 0)
+	playersMap := make(map[string]*player.Player)
+
+	// TODO(@yshngg):
+	for i, p := range players {
+		if counter != 0 {
+			counter--
+		}
+		if p == nil {
+			continue
+		}
+		position = append(position, p.ID())
+		playersMap[p.ID()] = p
+	}
 	r := &Round{
-		players: players,
-		button:  -1,
-		minBet:  -1,
-		status:  StatusReady,
+		position: position,
+		players:  playersMap,
+		button:   button,
+		minBet:   -1,
+		status:   StatusReady,
 	}
 	for _, opt := range opts {
 		opt(r)
@@ -121,11 +137,11 @@ func WithNumber(number int) Option {
 	}
 }
 
-func WithButton(button int) Option {
-	return func(r *Round) {
-		r.button = button
-	}
-}
+// func WithButton(button int) Option {
+// 	return func(r *Round) {
+// 		r.button = button
+// 	}
+// }
 
 func WithMinBet(minBet int) Option {
 	return func(r *Round) {
@@ -151,21 +167,21 @@ func WithRecorder(recorder watch.Recorder) Option {
 	}
 }
 
-func WithPlayers(players ...*player.Player) Option {
-	return func(r *Round) {
-		r.players = players
-	}
-}
+// func WithPlayers(players ...*player.Player) Option {
+// 	return func(r *Round) {
+// 		r.players = players
+// 	}
+// }
 
-func WithPlayerCount(min, max, current int) Option {
-	return func(r *Round) {
-		r.playerCount = playerCount{
-			max:     max,
-			min:     min,
-			current: current,
-		}
-	}
-}
+// func WithPlayerCount(min, max, current int) Option {
+// 	return func(r *Round) {
+// 		r.playerCount = playerCount{
+// 			max:     max,
+// 			min:     min,
+// 			current: current,
+// 		}
+// 	}
+// }
 
 type ErrMaxPlayerCountReached struct{}
 
@@ -189,11 +205,11 @@ func (r Round) CountPlayer() int {
 	return count
 }
 
-func (r Round) ExistsPlayer(id string) bool {
-	return slices.ContainsFunc(r.players, func(p *player.Player) bool {
-		return p.ID() == id
-	})
-}
+// func (r Round) ExistsPlayer(id string) bool {
+// 	return slices.ContainsFunc(r.players, func(p *player.Player) bool {
+// 		return p.ID() == id
+// 	})
+// }
 
 type ErrRoundAlreadyStarted struct{}
 
@@ -225,14 +241,14 @@ type ErrPlayerNotFound struct {
 	id string
 }
 
-func (r Round) FindPlayer(id string) (*player.Player, error) {
-	for _, p := range r.players {
-		if p.ID() == id {
-			return p, nil
-		}
-	}
-	return nil, ErrPlayerNotFound{id}
-}
+// func (r Round) FindPlayer(id string) (*player.Player, error) {
+// 	for _, p := range r.players {
+// 		if p.ID() == id {
+// 			return p, nil
+// 		}
+// 	}
+// 	return nil, ErrPlayerNotFound{id}
+// }
 
 func (e ErrPlayerNotFound) Error() string {
 	return fmt.Sprintf("player (id: %s) not found", e.id)
@@ -242,66 +258,66 @@ func (r *Round) Watch() (watch.Interface, error) {
 	return r.broadcaster.Watch()
 }
 
-func (r *Round) RemovePlayer(ctx context.Context, id string) error {
-	p, err := r.FindPlayer(id)
-	if err != nil {
-		return ErrPlayerNotFound{id}
-	}
+// func (r *Round) RemovePlayer(ctx context.Context, id string) error {
+// 	p, err := r.FindPlayer(id)
+// 	if err != nil {
+// 		return ErrPlayerNotFound{id}
+// 	}
 
-	if r.status.Before(StatusStarted) {
-		r.players = slices.DeleteFunc(r.players, func(pp *player.Player) bool {
-			return pp.ID() == id
-		})
-		return nil
-	}
+// 	if r.status.Before(StatusStarted) {
+// 		r.players = slices.DeleteFunc(r.players, func(pp *player.Player) bool {
+// 			return pp.ID() == id
+// 		})
+// 		return nil
+// 	}
 
-	p.StopWatch()
+// 	p.StopWatch()
 
-	if p.Status() == player.StatusWaitingToAct {
-		select {
-		case <-p.Active():
-			err := p.Fold(ctx)
-			if err != nil {
-				return fmt.Errorf("player %s (id: %s) fold, err: %w", p.Name(), p.ID(), err)
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-	p.Close()
-	return nil
-}
+// 	if p.Status() == player.StatusWaitingToAct {
+// 		select {
+// 		case <-p.Active():
+// 			err := p.Fold(ctx)
+// 			if err != nil {
+// 				return fmt.Errorf("player %s (id: %s) fold, err: %w", p.Name(), p.ID(), err)
+// 			}
+// 		case <-ctx.Done():
+// 			return ctx.Err()
+// 		}
+// 	}
+// 	p.Close()
+// 	return nil
+// }
 
-func (r *Round) prepare(ctx context.Context) error {
-	for _, p := range r.players {
-		if p == nil {
-			continue
-		}
-		watcher, err := r.broadcaster.Watch()
-		if err != nil {
-			return fmt.Errorf("failed to watch broadcaster: %w", err)
-		}
-		watcher = watch.Filter(watcher, func(in watch.Event) (out watch.Event, keep bool) {
-			// TODO(@yshngg): filter showdown event
-			// TODO(@yshngg): hiden burned card (dealer)
-			// hole cards are only visable to player own them
-			if in.Kind() == dealer.EventKind {
-				dealerEvent := in.(dealer.Event)
-				dealerEventObject := dealerEvent.Related().(dealer.EventObject)
-				if dealerEvent.Action() != dealer.EventDealHoleCards || dealerEventObject.To == dealer.ToPlayer(p) {
-					return in, true
-				}
-				// zero other player's hole cards
-				cards := make([]*card.Card, len(dealerEventObject.Cards))
-				dealer.NewEvent(dealerEvent.Action(), dealerEventObject.To, cards...)
-			}
-			return in, true
-		})
-		p.Apply(player.WithWatcher(watcher))
-	}
+// func (r *Round) prepare(ctx context.Context) error {
+// 	for _, p := range r.players {
+// 		if p == nil {
+// 			continue
+// 		}
+// 		watcher, err := r.broadcaster.Watch()
+// 		if err != nil {
+// 			return fmt.Errorf("failed to watch broadcaster: %w", err)
+// 		}
+// 		watcher = watch.Filter(watcher, func(in watch.Event) (out watch.Event, keep bool) {
+// 			// TODO(@yshngg): filter showdown event
+// 			// TODO(@yshngg): hiden burned card (dealer)
+// 			// hole cards are only visable to player own them
+// 			if in.Kind() == dealer.EventKind {
+// 				dealerEvent := in.(dealer.Event)
+// 				dealerEventObject := dealerEvent.Related().(dealer.EventObject)
+// 				if dealerEvent.Action() != dealer.EventDealHoleCards || dealerEventObject.To == dealer.ToPlayer(p) {
+// 					return in, true
+// 				}
+// 				// zero other player's hole cards
+// 				cards := make([]*card.Card, len(dealerEventObject.Cards))
+// 				dealer.NewEvent(dealerEvent.Action(), dealerEventObject.To, cards...)
+// 			}
+// 			return in, true
+// 		})
+// 		p.Apply(player.WithWatcher(watcher))
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 type ErrInvalidPlayerCount struct {
 	count int

@@ -6,6 +6,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/yshngg/holdem/pkg/card"
+	"github.com/yshngg/holdem/pkg/dealer"
 	"github.com/yshngg/holdem/pkg/player"
 	"github.com/yshngg/holdem/pkg/round"
 	"github.com/yshngg/holdem/pkg/watch"
@@ -32,7 +34,7 @@ type Table struct {
 	// equal to length of positions
 	capacity int
 
-	// position indicates the position relationship among players in round.
+	// position indicates the position relationship among players on the table.
 	position []*string
 
 	// waiting indicates the players who are waiting to join the table.
@@ -138,6 +140,23 @@ func (t *Table) Join(name, id string, chips int) (*player.Player, error) {
 	if err != nil {
 		return nil, fmt.Errorf("watch broadcaster, err: %w", err)
 	}
+	watcher = watch.Filter(watcher, func(in watch.Event) (out watch.Event, keep bool) {
+		// TODO(@yshngg): filter showdown event
+		// TODO(@yshngg): hiden burned card (dealer)
+		// hole cards are only visable to player own them
+		if in.Kind() == dealer.EventKind {
+			dealerEvent := in.(dealer.Event)
+			dealerEventObject := dealerEvent.Related().(dealer.EventObject)
+			if dealerEvent.Action() != dealer.EventDealHoleCards || dealerEventObject.To == dealer.ToPlayer(p) {
+				return in, true
+			}
+			// zero other player's hole cards
+			cards := make([]*card.Card, len(dealerEventObject.Cards))
+			dealer.NewEvent(dealerEvent.Action(), dealerEventObject.To, cards...)
+		}
+		return in, true
+	})
+
 	p := player.New(
 		player.WithName(name),
 		player.WithID(id),
@@ -193,6 +212,7 @@ func (t *Table) Start(ctx context.Context) error {
 	players := make([]*player.Player, 0, len(t.waiting))
 	roundNumber := 0
 	button := 0
+	dealer_ := dealer.New()
 
 	for {
 		readyPosition := make([]*string, len(t.position))
@@ -235,6 +255,7 @@ func (t *Table) Start(ctx context.Context) error {
 			round.WithMinBet(t.minBet),
 			round.WithButton(button%len(players)),
 			round.WithBroadcaster(t.broadcaster),
+			round.WithDealer(dealer_),
 		)
 
 		err := t.round.Start(ctx)

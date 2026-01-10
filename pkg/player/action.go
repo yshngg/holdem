@@ -40,7 +40,7 @@ func (at ActionType) String() string {
 func (at ActionType) ToStatus() StatusType {
 	switch at {
 	case ActionCheck, ActionBet, ActionRaise, ActionCall, ActionShowHoleCards, ActionHideHoleCards:
-		return StatusWaitingToAct
+		return StatusWaiting
 	case ActionFold:
 		return StatusFolded
 	case ActionAllIn:

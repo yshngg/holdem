@@ -39,10 +39,12 @@ type Player struct {
 	status        StatusType
 
 	// for action handling
-	once             sync.Once
-	active           chan bool
-	actionChan       chan Action
-	availableActions map[ActionType]Action
+	once sync.Once
+
+	// activeChan indicates
+	activeChan chan []Action
+	actionChan chan Action
+	// availableActions map[ActionType]Action
 }
 
 func New(opts ...Option) *Player {
@@ -121,11 +123,11 @@ func (p *Player) Watch() <-chan watch.Event {
 	return out.Watch()
 }
 
-func (p *Player) Apply(opts ...Option) {
-	for _, opt := range opts {
-		opt(p)
-	}
-}
+// func (p *Player) Apply(opts ...Option) {
+// 	for _, opt := range opts {
+// 		opt(p)
+// 	}
+// }
 
 // TODO(@yshngg): Implement BestFiveCard method
 func (p *Player) BestFiveCard(communityCards ...*card.Card) [5]*card.Card {
@@ -170,7 +172,7 @@ func (p *Player) Ready() error {
 	if p.status != StatusIdle {
 		return fmt.Errorf("player is not idle, cannot ready")
 	}
-	p.active = make(chan bool, 1)
+	p.activeChan = make(chan []Action, 1)
 	p.actionChan = make(chan Action)
 	p.status = StatusReady
 	return nil
@@ -178,11 +180,10 @@ func (p *Player) Ready() error {
 
 // Reset reset the player's status.
 func (p *Player) Reset() error {
-	p.active = make(chan bool, 1)
+	p.activeChan = make(chan []Action, 1)
 	p.actionChan = make(chan Action)
 	p.status = StatusReady
 	p.holeCards = [2]*card.Card{}
-	p.availableActions = make(map[ActionType]Action)
 	return nil
 }
 
@@ -191,7 +192,7 @@ func (p *Player) CancelReady() error {
 		return fmt.Errorf("player is not ready, cannot cancel")
 	}
 	p.status = StatusIdle
-	p.active = nil
+	p.activeChan = nil
 	p.actionChan = nil
 	return nil
 }
@@ -199,8 +200,8 @@ func (p *Player) CancelReady() error {
 // Gone is used to release resources.
 func (p *Player) Gone() error {
 	p.once.Do(func() {
-		if p.active != nil {
-			close(p.active)
+		if p.activeChan != nil {
+			close(p.activeChan)
 		}
 		if p.actionChan != nil {
 			close(p.actionChan)
@@ -237,21 +238,21 @@ func (p *Player) Status() StatusType {
 	return p.status
 }
 
-func (p *Player) Active() <-chan bool {
-	return p.active
+func (p *Player) Active() <-chan []Action {
+	return p.activeChan
 }
 
 func (p *Player) takeAction(ctx context.Context, action Action) error {
 	ctx, cancel := context.WithTimeoutCause(ctx, p.actionTimeout, fmt.Errorf("action timeout"))
 	defer cancel()
 
-	if p.availableActions == nil {
-		return fmt.Errorf("not have available actions")
-	}
-	require, ok := p.availableActions[action.Type]
-	if !ok {
-		return fmt.Errorf("not available action: %v, available action: %v", action, p.availableActions)
-	}
+	// if p.availableActions == nil {
+	// 	return fmt.Errorf("not have available actions")
+	// }
+	// require, ok := p.availableActions[action.Type]
+	// if !ok {
+	// 	return fmt.Errorf("not available action: %v, available action: %v", action, p.availableActions)
+	// }
 
 	switch action.Type {
 	case ActionCheck, ActionFold:
@@ -289,50 +290,53 @@ func (p *Player) takeAction(ctx context.Context, action Action) error {
 // WaitForAction wait for the player to take action
 // action[0] is the default action.
 // TODO(@yshngg): check correct of function call params
-func (p *Player) WaitForAction(ctx context.Context, actions []Action) (*Action, error) {
+func (p *Player) WaitForAction(ctx context.Context, available []Action) (*Action, error) {
 	ctx, cancel := context.WithTimeoutCause(ctx, p.actionTimeout, fmt.Errorf("action timeout"))
 	defer cancel()
 
-	if p.status != StatusWaitingToAct {
-		return nil, fmt.Errorf("player not wait to act")
+	if p.status != StatusWaiting {
+		return nil, fmt.Errorf("player %s [id: %s] does not wait to act, status: %s", p.name, p.id, p.status)
 	}
-	p.status = StatusTakingAction
+	// p.status = StatusTakingAction
 
-	availableActions := make(map[ActionType]Action)
-	for _, action := range actions {
-		availableActions[action.Type] = action
+	// deduplicate actions
+	availableMap := make(map[ActionType]Action)
+	for _, action := range available {
+		availableMap[action.Type] = action
 	}
 
 	// drain active and action channels
 Drain:
 	for {
 		select {
-		case <-p.active:
+		case <-p.activeChan:
 		case <-p.actionChan:
 		default:
-			if len(p.active) == 0 && len(p.actionChan) == 0 {
+			if len(p.activeChan) == 0 && len(p.actionChan) == 0 {
 				break Drain
 			}
 		}
 	}
 
-	p.active <- true
-	p.availableActions = availableActions
-	defer func() {
-		p.availableActions = nil
-	}()
+	p.activeChan <- available
 
-	action := actions[0]
+	// p.availableActions = availableActions
+	// defer func() {
+	// p.availableActions = nil
+	// }()
+
+	action := available[0]
 	select {
 	case <-ctx.Done():
-		<-p.active
+		<-p.activeChan
+
 	case action = <-p.actionChan:
 	}
 
 	// action concluded
-	if p.status != StatusTakingAction {
-		return nil, fmt.Errorf("player is not take action")
-	}
+	// if p.status != StatusTakingAction {
+	// 	return nil, fmt.Errorf("player is not take action")
+	// }
 	p.status = action.Type.ToStatus()
 	return &action, nil
 }
