@@ -299,12 +299,6 @@ func (p *Player) WaitForAction(ctx context.Context, available []Action) (*Action
 	}
 	// p.status = StatusTakingAction
 
-	// deduplicate actions
-	availableMap := make(map[ActionType]Action)
-	for _, action := range available {
-		availableMap[action.Type] = action
-	}
-
 	// drain active and action channels
 Drain:
 	for {
@@ -329,8 +323,13 @@ Drain:
 	select {
 	case <-ctx.Done():
 		<-p.activeChan
-
+		err := p.takeAction(ctx, action) // default action when timeout
+		if err != nil {
+			return nil, fmt.Errorf("take default action: %v, err: %W", action.Type, err)
+		}
+		return &action, nil
 	case action = <-p.actionChan:
+
 	}
 
 	// action concluded
@@ -339,4 +338,45 @@ Drain:
 	// }
 	p.status = action.Type.ToStatus()
 	return &action, nil
+}
+
+func (p *Player) verifyAction(action Action, available []Action) error {
+	if available == nil {
+		return fmt.Errorf("do not have available actions")
+	}
+	// deduplicate actions
+	availableMap := make(map[ActionType]Action)
+	for _, action := range available {
+		availableMap[action.Type] = action
+	}
+
+	require, ok := availableMap[action.Type]
+	if !ok {
+		return fmt.Errorf("action %v invalid, available actions are: %v", action.Type, available)
+	}
+
+	switch action.Type {
+	case ActionCheck, ActionFold:
+	case ActionBet, ActionRaise:
+		// Equivalent to: !(require.Chips <= action.Chips <= p.chips)
+		if require.Chips > action.Chips || action.Chips > p.chips {
+			return fmt.Errorf("not enough chips: %d, can not take the action: %v", p.chips, action)
+		}
+		p.chips -= action.Chips
+	case ActionCall:
+		// Equivalent to: !(require.Chips <= p.chips)
+		if require.Chips > p.chips {
+			return fmt.Errorf("not enough chips: %d, can not take the action: %v", p.chips, action)
+		}
+		action.Chips = require.Chips
+		p.chips -= require.Chips
+	case ActionAllIn:
+		if p.chips <= 0 {
+			return fmt.Errorf("not enough chips: %d", p.chips)
+		}
+		action.Chips = p.chips
+		p.chips = 0
+	default:
+		return fmt.Errorf("invalid action type: %v", action.Type)
+	}
 }
